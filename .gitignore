@@ -1,0 +1,15 @@
+*~
+*.aux
+*.bbl
+*.blg
+*.toc
+*.tmp
+*.log
+*.nav
+*.dvi
+*.out
+*.snm
+auto
+_region_.*
+#*
+.#*
