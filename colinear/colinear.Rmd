@@ -1,6 +1,9 @@
 ---
 title: "Bayesian version of Andrew Tyre's Does model averaging make sense?"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document: default
 ---
 Bayesian version of Andrew Tyre's "Does model averaging make sense?"
 https://atyre2.github.io/2017/06/16/rebutting_cade.html
@@ -14,6 +17,7 @@ if (!require(devtools)) {
 	library(devtools)
 }
 devtools::install_github('stan-dev/projpred', build_vignettes = TRUE)
+library(projpred)
 ```
 
 We generate the data used previously to illustrate multi-colinearity problems.
@@ -31,22 +35,20 @@ df <- data_frame(
   x3= pmax(neg.tot - runif(200,min=0.0,max=0.10),0),
   x2= pmax(pos.tot - x1 - x3/2,0),
   x4= pmax(1 - x1 - x2 - x3 - urban.tot,0))
+# true model and 200 Poisson observations
+mean.y <- exp(-5.8 + 6.3*df$x1 + 15.2*df$x2)
+df$y <- rpois(200,mean.y)
 
 ggpairs(df)
 ```
-Tyre: "So there is a near perfect negative correlation between the things sage grouse like and the things they don’t like, although it gets less bad when considering the individual covariates."
 
-And here's the true model with Poisson observations.
-```{r}
-mean.y <- exp(-5.8 + 6.3*df$x1 + 15.2*df$x2)
-df$y <- rpois(200,mean.y)
-```
+Tyre: "So there is a near perfect negative correlation between the things sage grouse like and the things they don’t like, although it gets less bad when considering the individual covariates."
 
 From this point onwards we switch to Bayesian approach. The rstanarm package provides stan_glm which accepts same arguments as glm, but makes full Bayesian inference using Stan (Hamiltonian Monte Carlo No-U-Turn-sampling). By default a weakly informative Gaussian prior is used for weights.
 ```{r}
 library(rstanarm)
 options(mc.cores = 4)
-fitg <- stan_glm(y ~ x1 + x2 + x3 + x4, data = df, na.action = na.fail, family=poisson())
+fitg <- stan_glm(y ~ x1 + x2 + x3 + x4, data = df, na.action = na.fail, family=poisson(), seed=1)
 ```
 Let's look at the summary and plot:
 ```{r}
@@ -57,53 +59,42 @@ summary(fitg)
 library(bayesplot)
 mcmc_areas(as.matrix(fitg),prob_outer = .99)
 ```
-The 95% posterior intervals of x1 and x1 are not overlapping 0, but the mean of intercept, x1 and x2 have clearly larger magnitude than the true values and marginal posteriors are quite wide considering that n=0. Wide marginals are due to co-linearity.
 
-If we assume that some of the variables are conditionally irrelevant (given variables already in the model), we should use alternative prior to Gaussian. Here we use horseshoe prior with the hyperparameters set as recommended in http://proceedings.mlr.press/v54/piironen17a.html. Bayesian inferene with horseshoe prior (and other shrinkage priors) can also be considered as making continuos model averaging, that is, instead of having discrete set of models with different variable combinations there is a continuous value of how relevant eah variable is (ie how much they are shrunk towards zero). So we can avoid separate model averaging.
+All 95% posterior intervals are overlapping 0 and it seems we have the same colinearity problem as with maximum likelihood estimates.
+
+Looking at the pairwise posteriors we can see high correlations
 ```{r}
-n <- 200
-D <- 4
-p0 <- 2 # prior guess for the number of relevant variables
-tau0 <- p0/(D-p0) * 1/sqrt(n) # scale for tau (notice that stan_glm will automatically scale this by sigma)
-prior_coeff <- hs(df=1, global_df=1, global_scale=tau0) # horseshoe prior
-fiths <- stan_glm(y ~ x1 + x2 + x3 + x4, data = df, na.action = na.fail, family=poisson(), prior=prior_coeff, chains=4)
+mcmc_pairs(as.matrix(fitg),pars = c("x1","x2","x3","x4"))
+```
+If look more carefully on of the subplots, we see that although marginal posterior intervals overlap 0, the joint posterior is not overlapping 0.
+```{r}
+mcmc_scatter(as.matrix(fitg), pars = c("x1", "x2"))+geom_vline(xintercept=0)+geom_hline(yintercept=0)
 ```
 
-Let's look at the summary and plot again
-```{r}
-summary(fiths)
-```
-```{r}
-mcmc_areas(as.matrix(fiths),prob_outer = .99)
-```
-Using a sparsifying prior helps, and posterior of x3 and x3 have been shrunk a lot, which helps with the co-linearity and posterior means of intercept, x1 and x2 are close to the true values and 95% posterior intervals are much shorter. We could conclude that x1 and x2 are the relevant variables for the prediction. Bayes wins again!
+Based on the joint distributions all the variables would be relevant. To make predictions we don't need to make variable selection, we just integrate over the uncertainty (kind of continuous model averaging). 
 
-But let's not stop there yet. Let's first check does the change of prior affect the predictive performance. To compare the predictive performance of the above two models we use fast leave-one-out cross-validation http://link.springer.com/article/10.1007/s11222-016-9696-4
+We might want to choose some variables 1) because we don't want to observe all the variables in the future (e.g. due to the measurement cost), or 2) we want to most relevant variables which we define here as a minimal set of variables which can provide similar predictions to the full model.
 
-```{r}
-library(loo)
-loog=loo(fitg)
-loohs=loo(fiths)
-compare(loog,loohs)
-```
-No difference, which in our experience is typical for models with moderate number of variables and co-linearity (horseshoe improves the predictive performance more if there are lot of completely irrelevant variables). So from the predictive sens we could use either model.
+Tyre used AIC_c to estimate the model performance. In Bayesian setting we could use Bayesian alternatives Bayesian cross-validation or WAIC, but we don't recommend them for variable selection as discussed in http://link.springer.com/article/10.1007/s11222-016-9649-y . The reason for not using Bayesian CV or WAIC is that the selection process uses the data twice, and in case of large number variable combinations the selection process overfits and can produce really bad models. Using the usual posterior inference given the selected variables ignores that the selected variables are conditonal on the selection process and simply setting some variables to 0 ignores the uncertainty related to their relevance.
 
-Now there is still some posterior uncertainty also in the horseshoe prior model about the weights of x3 and x4, which we should take into account when making predictions. We might want also to set x3 and x4 exactly zero, for example, if in the future we don't want to measure/observe them. Although we used loo above to compare two models, we don't generally recommend it for variable selection as the selection process itself fits to the data and the problem gets worse with increasing number of models compared http://link.springer.com/article/10.1007/s11222-016-9649-y.
+The paper http://link.springer.com/article/10.1007/s11222-016-9649-y also shows that a projection predictive approach can be used to make a model reduction, that is, choosing a smaller model with some coefficients set to 0. The projection predictive approach solves the problem how to do inference after the selection. The solution is to project the full model posterior to the restricted subspace. See more in http://link.springer.com/article/10.1007/s11222-016-9649-y
 
-The paper http://link.springer.com/article/10.1007/s11222-016-9649-y also shows that a projection predictive approach is much better for making a model reduction, that is, choosing a smaller model with some coefficients set to 0. The projection predictive approach also solves the problem how to do inference after the selection. The solution is to project the full model posterior to the restricted subspace. See more in http://link.springer.com/article/10.1007/s11222-016-9649-y
-
-We start by making the projective predictive variable selection using the full model with Gaussian prior.
+We make the projective predictive variable selection using the previous full model. A fast leave-one-out cross-validation approach http://link.springer.com/article/10.1007/s11222-016-9696-4 is used to choose the model size.
 ```{r}
 fitg_cv <- cv_varsel(fitg, method='forward', cv_method='LOO')
+fitg_cv$varsel$vind
 ```
 We can now look at the estimated predictive performance pf smaller models compared to the full model.
 ```{r}
 varsel_plot(fitg_cv, statistics = c('mlpd', 'mse'), deltas=T)
 ```
+
 And we get a loo-cv based recommendation for the model size to choose
 ```{r}
 fitg_cv$varsel$ssize
 ```
+We see that 2 variables is enough to get the same as with all 4 variables.
+
 Next we form the projected posterior for the chosen model.
 ```{r}
 projg <- project(fitg_cv, nv = 2, ns = 4000)
@@ -114,33 +105,9 @@ round(posterior_interval(as.matrix(projg)),1)
 mcmc_areas(as.matrix(projg), 
            pars = c('(Intercept)', names(fitg_cv$varsel$vind[1:2])))
 ```
-Even if we started with a model with Gaussian prior which had due to a co-linearity difficult to interpret posterior, the projected posterior is able to match closely the true values! The necessary information was in the full model and with the projection we were able to form the projected posterior which we should use if x3 and x4 are seto 0.
 
-For comparison, we can also check the projection results for the model with horseshoe prior.
-```{r}
-fiths_cv <- cv_varsel(fiths, method='forward', cv_method='LOO')
-```
-Let's check the estimated predictive performance pf smaller models compared to the full model.
-```{r}
-varsel_plot(fiths_cv, statistics = c('mlpd', 'mse'), deltas=T)
-```
-```{r}
-fiths_cv$varsel$ssize
-```
-No surprises there.
-```{r}
-proj <- project(fiths_cv, nv = 2, ns = 4000)
-round(colMeans(as.matrix(proj)),1)
-round(posterior_interval(as.matrix(proj)),1)
-```
-
-```{r}
-mcmc_areas(as.matrix(proj), 
-           pars = c('(Intercept)', names(fit_cv$varsel$vind[1:2])))
-```
-The results look similar to the projection from the model using Gaussian prior. Although in the case of full model the marginal posteriors of x3 and x4 were narrower with the horseshoe than with the Gaussian prior, the co-linearity still caused extra uncertainty in the posterior marginals of x1 and x2. We see that also in this case the projected marginals are narrower as we have removed the co-linear variables (and we did this without fear of overfitting in the selection process and we do the inference after selection correctly).
+Even if we started with a model which had due to a co-linearity difficult to interpret posterior, the projected posterior is able to match closely the true values. The necessary information was in the full model and with the projection we were able to form the projected posterior which we should use if x3 and x4 are seto 0.
 
 Back to the Tyre's question "Does model averaging make sense?". If we are interested just in good predictions we can do continuous model averaging by using suitable priors and by integrating over the posterior. If we are intersted in predcitions, then we don't first average weights (ie posterior mean), but use all weight values to compute predictions and do the averaging of the predictions. All this is automatic in Bayesian framework. 
 
 Tyre also commented on the problems of measuring variable importance. The projection predictive approach above is derived using decision theory and is very helpful for measuring relevancy and choosing relevant variables. Tyre did not comment about the inference after selection although it is also known problem in variable selection. The projection predictive approach above solves that problem, too.
-
