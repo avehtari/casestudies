@@ -166,6 +166,7 @@ data %>%
 #'
 
 #' Compile Stan model
+#+ model1, results='hide'
 model1 <- cmdstan_model(stan_file = root("Birthdays", "gpbf1.stan"),
                         include_paths = root("Birthdays"))
 #' Data to be passed to Stan
@@ -214,7 +215,7 @@ data %>%
 #' not be used as th final result.
 #+ fit1, results='hide'
 fit1 <- model1$sample(data=standata1, iter_warmup=100, iter_sampling=100,
-                      chains=4, parallel_chains=4)
+                      chains=4, parallel_chains=4, seed=3891)
 
 #' Depending on the random seed and luck, we sometimes observed that
 #' some of the chains got stuck in different modes. We could see this

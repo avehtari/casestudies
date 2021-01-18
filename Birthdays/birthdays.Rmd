@@ -186,7 +186,7 @@ Riutort-Mayol et al., 2020).
 
 Compile Stan model
 
-```{r }
+```{r model1, results='hide'}
 model1 <- cmdstan_model(stan_file = root("Birthdays", "gpbf1.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -250,7 +250,7 @@ not be used as th final result.
 
 ```{r fit1, results='hide'}
 fit1 <- model1$sample(data=standata1, iter_warmup=100, iter_sampling=100,
-                      chains=4, parallel_chains=4)
+                      chains=4, parallel_chains=4, seed=3891)
 ```
 
 Depending on the random seed and luck, we sometimes observed that
