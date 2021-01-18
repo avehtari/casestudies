@@ -186,7 +186,7 @@ Riutort-Mayol et al., 2020).
 
 Compile Stan model
 
-```{r }
+```{r model1, results='hide'}
 model1 <- cmdstan_model(stan_file = root("Birthdays", "gpbf1.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -250,7 +250,7 @@ not be used as th final result.
 
 ```{r fit1, results='hide'}
 fit1 <- model1$sample(data=standata1, iter_warmup=100, iter_sampling=100,
-                      chains=4, parallel_chains=4)
+                      chains=4, parallel_chains=4, seed=3891)
 ```
 
 Depending on the random seed and luck, we sometimes observed that
@@ -376,7 +376,7 @@ fast experimentation and solving the problem.
 
 Compile Stan model 2 (the fixed version)
 
-```{r }
+```{r model2, results='hide'}
 model2 <- cmdstan_model(stan_file = root("Birthdays", "gpbf2.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -512,7 +512,7 @@ $$
 
 Compile Stan model 3
 
-```{r }
+```{r model3, results='hide'}
 model3 <- cmdstan_model(stan_file = root("Birthdays", "gpbf3.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -672,7 +672,7 @@ covariance function.
 
 Compile Stan model 4
 
-```{r }
+```{r model4, results='hide'}
 model4 <- cmdstan_model(stan_file = root("Birthdays", "gpbf4.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -863,7 +863,7 @@ was better to give up on this model for a moment.
 
 Compile Stan model 5
 
-```{r }
+```{r model5, results='hide'}
 model5 <- cmdstan_model(stan_file = root("Birthdays", "gpbf5.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -976,7 +976,7 @@ $$
 
 Compile Stan model 6
 
-```{r }
+```{r model6, results='hide'}
 model6 <- cmdstan_model(stan_file = root("Birthdays", "gpbf6.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -1134,7 +1134,7 @@ following Friday).
 
 Compile Stan model 7
 
-```{r }
+```{r model7, results='hide'}
 model7 <- cmdstan_model(stan_file = root("Birthdays", "gpbf7.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -1290,7 +1290,7 @@ the time dependent day of week effect back to the model.
 
 Compile Stan model 8
 
-```{r }
+```{r model8, results='hide'}
 model8 <- cmdstan_model(stan_file = root("Birthdays", "gpbf8.stan"),
                         include_paths = root("Birthdays"))
 ```
@@ -1531,7 +1531,7 @@ whether the day of year effect is sensitive to the prior choice.
 
 Compile Stan model 8 + t_nu
 
-```{r }
+```{r model8tnu, results='hide'}
 model8tnu <- cmdstan_model(stan_file = root("Birthdays", "gpbf8tnu.stan"),
                            include_paths = root("Birthdays"))
 ```
@@ -1696,7 +1696,7 @@ from one of the parameter declarations).
 
 Compile Stan model 8 + RHS
 
-```{r }
+```{r model8rhs, results='hide'}
 model8rhs <- cmdstan_model(stan_file = root("Birthdays", "gpbf8rhs.stan"),
                            include_paths = root("Birthdays"))
 ```
