@@ -185,7 +185,7 @@ standata1 <- list(x=data$id,
 #' minutes. Although this result can be useful in a quick workflow,
 #' the result should not be used as the final result.
 #+ opt1, results='hide'
-opt1 <- model1$optimize(data = standata1, init=0, algorithm='bfgs', tol_obj=10)
+opt1 <- model1$optimize(data = standata1, init=0, algorithm='bfgs')
 #' Check whether parameters have reasonable values
 odraws1 <- opt1$draws()
 subset(odraws1, variable=c('intercept','sigma_f1','lengthscale_f1','sigma'))
