@@ -315,6 +315,7 @@ data %>%
 #' fast experimentation and solving the problem.
 #' 
 #' Compile Stan model 2 (the fixed version)
+#+ model2, results='hide'
 model2 <- cmdstan_model(stan_file = root("Birthdays", "gpbf2.stan"),
                         include_paths = root("Birthdays"))
 
@@ -428,6 +429,7 @@ pf / (pf1 + pf2)
 #' $$
 #' 
 #' Compile Stan model 3
+#+ model3, results='hide'
 model3 <- cmdstan_model(stan_file = root("Birthdays", "gpbf3.stan"),
                         include_paths = root("Birthdays"))
 
@@ -565,6 +567,7 @@ pf3 <- ggplot(data=data, aes(x=day_of_week, y=births_relative100)) + geom_point(
 #' covariance function.
 #' 
 #' Compile Stan model 4
+#+ model4, results='hide'
 model4 <- cmdstan_model(stan_file = root("Birthdays", "gpbf4.stan"),
                         include_paths = root("Birthdays"))
 
@@ -733,6 +736,7 @@ pf3b <- data %>%
 #' was better to give up on this model for a moment.
 #'
 #' Compile Stan model 5
+#+ model5, results='hide'
 model5 <- cmdstan_model(stan_file = root("Birthdays", "gpbf5.stan"),
                         include_paths = root("Birthdays"))
 
@@ -833,6 +837,7 @@ pf2b <-data.frame(x=as.Date("1959-12-31")+1:366, y=Ef4) %>%
 #' $$
 #' 
 #' Compile Stan model 6
+#+ model6, results='hide'
 model6 <- cmdstan_model(stan_file = root("Birthdays", "gpbf6.stan"),
                         include_paths = root("Birthdays"))
 
@@ -971,6 +976,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4) %>%
 #' following Friday).
 #'
 #' Compile Stan model 7
+#+ model7, results='hide'
 model7 <- cmdstan_model(stan_file = root("Birthdays", "gpbf7.stan"),
                         include_paths = root("Birthdays"))
 
@@ -1105,6 +1111,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #' the time dependent day of week effect back to the model.
 #' 
 #' Compile Stan model 8
+#+ model8, results='hide'
 model8 <- cmdstan_model(stan_file = root("Birthdays", "gpbf8.stan"),
                         include_paths = root("Birthdays"))
 
@@ -1319,6 +1326,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #' ### Model 8+t_nu: day of year effect with Student's t prior
 #' 
 #' Compile Stan model 8 + t_nu
+#+ model8tnu, results='hide'
 model8tnu <- cmdstan_model(stan_file = root("Birthdays", "gpbf8tnu.stan"),
                            include_paths = root("Birthdays"))
 
@@ -1466,6 +1474,7 @@ loo_compare(list(`Model 8 normal`=loo8,`Model 8 Student\'s t`=loo8tnu))
 #' from one of the parameter declarations).
 #'
 #' Compile Stan model 8 + RHS
+#+ model8rhs, results='hide'
 model8rhs <- cmdstan_model(stan_file = root("Birthdays", "gpbf8rhs.stan"),
                            include_paths = root("Birthdays"))
 
