@@ -6,7 +6,7 @@
 #'   html_document:
 #'     theme: readable
 #'     toc: true
-#'     toc_depth: 2
+#'     toc_depth: 3
 #'     toc_float: true
 #'     code_download: true
 #' ---
@@ -411,6 +411,7 @@ pf2 <- data %>%
 pf / (pf1 + pf2)
 
 #' Seasonal component has reasonable fit to the data.
+#' 
 
 #' ### Model 3: Slow trend + yearly seasonal trend + day of week
 #'
@@ -543,6 +544,7 @@ pf3 <- ggplot(data=data, aes(x=day_of_week, y=births_relative100)) + geom_point(
 
 #' Weekday effects are easy to estimate as there are about thousand
 #' observations per weekday.
+#' 
 
 #' ### Model 4: long term smooth + seasonal + weekday with increasing magnitude
 #'
@@ -707,6 +709,7 @@ pf3b <- data %>%
 #' The model fits well the different branches visible in plotted daily
 #' relative number of births, that is, it is able to model the
 #' increasing weekend effect.
+#' 
 
 #' ### Model 5: long term smooth + seasonal + weekday with time dependent magnitude + day of year RHS
 #'
@@ -817,6 +820,7 @@ pf2b <-data.frame(x=as.Date("1959-12-31")+1:366, y=Ef4) %>%
 
 #' The quick model fit for model 5 is not good, but as the sampling
 #' was very slow it wasn't easy to figure out what is going wrong.
+#' 
 
 #' ### Model 6: long term smooth + seasonal + weekday + day of year
 #'
@@ -1103,7 +1107,6 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #' The day of year and floating special day effects are shown for year
 #' 1988 (which is also a leap year) and the results seem reasonable.
 #' 
-
 
 #' ### Model 8: long term smooth + seasonal + weekday with time dependent magnitude + day of year + special
 #'
