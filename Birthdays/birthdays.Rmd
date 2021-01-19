@@ -6,7 +6,7 @@ output:
   html_document:
     theme: readable
     toc: true
-    toc_depth: 2
+    toc_depth: 3
     toc_float: true
     code_download: true
 ---
@@ -494,6 +494,7 @@ pf / (pf1 + pf2)
 ```
 
 Seasonal component has reasonable fit to the data.
+
 ### Model 3: Slow trend + yearly seasonal trend + day of week
 
 Based on the quick plotting of the data above, day of week has a
@@ -648,6 +649,7 @@ pf3 <- ggplot(data=data, aes(x=day_of_week, y=births_relative100)) + geom_point(
 
 Weekday effects are easy to estimate as there are about thousand
 observations per weekday.
+
 ### Model 4: long term smooth + seasonal + weekday with increasing magnitude
 
 Looking at the time series of whole data we see the dots
@@ -834,6 +836,7 @@ pf3b <- data %>%
 The model fits well the different branches visible in plotted daily
 relative number of births, that is, it is able to model the
 increasing weekend effect.
+
 ### Model 5: long term smooth + seasonal + weekday with time dependent magnitude + day of year RHS
 
 The next component to add is day of year effect. Many bank holidays
@@ -956,6 +959,7 @@ pf2b <-data.frame(x=as.Date("1959-12-31")+1:366, y=Ef4) %>%
 
 The quick model fit for model 5 is not good, but as the sampling
 was very slow it wasn't easy to figure out what is going wrong.
+
 ### Model 6: long term smooth + seasonal + weekday + day of year
 
 To simplify the analysis of the day of year effect and make the
