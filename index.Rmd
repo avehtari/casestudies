@@ -1,0 +1,12 @@
+---
+title: "Case studies"
+author: "Aki Vehtari"
+date: "Page updated: `r format.Date(file.mtime('index.Rmd'),'%Y-%m-%d')`"
+---
+
+-------------
+
+## Miscalleanous case studies
+
+- [Motorcycle](Motorcycle/motorcycle.html): Gaussian process demo with heteroscedastic noise model and Hilbert basis function and covariance matrix implementations
+
