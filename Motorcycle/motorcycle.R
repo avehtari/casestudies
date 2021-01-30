@@ -145,6 +145,7 @@ drawsdf%>%
 #' Model code
 file2 <- "gpcov.stan"
 writeLines(readLines(file2))
+
 #' Compile Stan model
 model2 <- cmdstan_model(stan_file = file2)
 
@@ -159,7 +160,7 @@ opt2 <- model2$optimize(data=standata2, init=0.1, algorithm='bfgs')
 
 #' Check whether parameters have reasonable values
 odraws2 <- opt2$draws()
-subset(odraws1, variable=c('intercept','sigma_','lengthscale_'), regex=TRUE)
+subset(odraws1, variable=c('sigma_','lengthscale_'), regex=TRUE)
 
 #' Compare the model to the data
 Ef <- as.numeric(subset(odraws2, variable='f'))
@@ -180,7 +181,7 @@ fit2 <- model2$sample(data=standata2, iter_warmup=100, iter_sampling=100,
 
 #' Check whether parameters have reasonable values
 draws2 <- fit2$draws()
-summarise_draws(subset(draws1, variable=c('intercept','sigma_','lengthscale_'), regex=TRUE))
+summarise_draws(subset(draws1, variable=c('sigma_','lengthscale_'), regex=TRUE))
 
 #' Compare the model to the data
 draws2m <- as_draws_matrix(draws2)

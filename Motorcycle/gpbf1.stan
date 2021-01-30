@@ -7,9 +7,9 @@ data {
   vector[N] y;         // target variable
         
   real<lower=0> c_f;   // factor c to determine the boundary value L
-  int<lower=1> M_f;    // number of basis functions for smooth function
+  int<lower=1> M_f;    // number of basis functions
   real<lower=0> c_g;   // factor c to determine the boundary value L
-  int<lower=1> M_g;    // number of basis functions for smooth function
+  int<lower=1> M_g;    // number of basis functions
 }
 transformed data {
   // Normalize data
@@ -32,11 +32,11 @@ parameters {
   vector[M_g] beta_g;          // the basis functions coefficients
   real<lower=0> lengthscale_f; // lengthscale of f
   real<lower=0> sigma_f;       // scale of f
-  real<lower=0> lengthscale_g; // lengthscale of f
-  real<lower=0> sigma_g;       // scale of f
+  real<lower=0> lengthscale_g; // lengthscale of g
+  real<lower=0> sigma_g;       // scale of g
 }
 model {
-  // spectral densities for f
+  // spectral densities for f and g
   vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
   vector[M_g] diagSPD_g = diagSPD_EQ(sigma_g, lengthscale_g, L_g, M_g);
   // priors
@@ -50,7 +50,6 @@ model {
   // model
   yn ~ normal(intercept + PHI_f * (diagSPD_f .* beta_f),
 	      exp(PHI_g * (diagSPD_g .* beta_g)));
-/* yn ~ normal_id_glm(PHI_f, intercept, diagSPD_f .* beta_f, sigma);  */
 }
 generated quantities {
   vector[N] f;
@@ -59,7 +58,7 @@ generated quantities {
     // spectral densities
     vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
     vector[M_g] diagSPD_g = diagSPD_EQ(sigma_g, lengthscale_g, L_g, M_g);
-    // function scaled back to original scale
+    // function scaled back to the original scale
     f = (intercept + PHI_f * (diagSPD_f .* beta_f))*ysd + ymean;
     sigma = exp(PHI_g * (diagSPD_g .* beta_g))*ysd;
   }
