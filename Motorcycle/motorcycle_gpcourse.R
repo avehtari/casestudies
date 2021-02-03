@@ -36,7 +36,6 @@
 #' \mu \sim GP(0, K_1)\\
 #' \eta \sim GP(0, K_2)
 #' $$
-#' $K_1$ and $K_2$ are exponentiated quadratic covariance functions.
 #'
 
 #+ setup, include=FALSE
@@ -86,6 +85,27 @@ standata1 <- list(x=mcycle$times,
                   c_g=1.5, # factor c of basis functions for GP for g3
                   M_g=40)  # number of basis functions for GP for g3
 
+#' Optimize and find MAP estimate
+#+ opt1, results='hide'
+opt1 <- model1$optimize(data=standata1, init=0.1, algorithm='bfgs')
+
+#' Check whether parameters have reasonable values
+odraws1 <- opt1$draws()
+subset(odraws1, variable=c('intercept','sigma_','lengthscale_'), regex=TRUE)
+
+#' Compare the model to the data
+Ef <- as.numeric(subset(odraws1, variable='f'))
+sigma <- as.numeric(subset(odraws1, variable='sigma'))
+pred<-data.frame(Ef=Ef,sigma=sigma)
+cbind(mcycle,pred) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+
 #' Sample using dynamic HMC
 #+ fit1, results='hide'
 fit1 <- model1$sample(data=standata1, iter_warmup=500, iter_sampling=500,
@@ -122,6 +142,19 @@ subset(draws1, variable="f") %>%
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
   geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
 
+#' Compare the posterior draws to the optimized parameters
+optim<-as_draws_df(subset(odraws1, variable=c('sigma_g','lengthscale_g')))
+optim<-as_draws_df(subset(odraws1, variable=c('sigma_g','lengthscale_g')))
+drawsdf<-as_draws_df(subset(draws1, variable=c('sigma_g','lengthscale_g')))
+drawsdf%>%
+  ggplot(aes(x=lengthscale_g,y=sigma_g))+
+  geom_point(color=set1[2])+
+  geom_point(data=optim,color=set1[1])+
+  annotate("text",x=median(drawsdf$lengthscale_g),y=max(drawsdf$sigma_g)+0.1,
+           label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=optim$lengthscale_g+0.01,y=optim$sigma_g,
+           label='Optimized',hjust=0,color=set1[1],size=6)
+
 #' ## GP with covariance matrices
 #' 
 #' Model code
@@ -135,6 +168,26 @@ model2 <- cmdstan_model(stan_file = file2)
 standata2 <- list(x=mcycle$times,
                   y=mcycle$accel,
                   N=length(mcycle$times))
+
+#' Optimize and find MAP estimate
+#+ opt2, results='hide'
+opt2 <- model2$optimize(data=standata2, init=0.1, algorithm='bfgs')
+
+#' Check whether parameters have reasonable values
+odraws2 <- opt2$draws()
+subset(odraws1, variable=c('sigma_','lengthscale_'), regex=TRUE)
+
+#' Compare the model to the data
+Ef <- as.numeric(subset(odraws2, variable='f'))
+sigma <- as.numeric(subset(odraws2, variable='sigma'))
+pred<-data.frame(Ef=Ef,sigma=sigma)
+cbind(mcycle,pred) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
 
 #' Sample using dynamic HMC
 #+ fit2, results='hide'
@@ -170,3 +223,16 @@ subset(draws2, variable="f") %>%
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
   geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
+
+#' Compare the posterior draws to the optimized parameters
+optim<-as_draws_df(subset(odraws2, variable=c('sigma_g','lengthscale_g')))
+drawsdf<-as_draws_df(subset(draws2, variable=c('sigma_g','lengthscale_g')))
+drawsdf%>%
+  ggplot(aes(x=lengthscale_g,y=sigma_g))+
+  geom_point(color=set1[2])+
+  geom_point(data=optim,color=set1[1])+
+  annotate("text",x=median(drawsdf$lengthscale_g),y=max(drawsdf$sigma_g)+0.1,
+           label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=optim$lengthscale_g+0.01,y=optim$sigma_g,
+           label='Optimized',hjust=0,color=set1[1],size=6)
+
