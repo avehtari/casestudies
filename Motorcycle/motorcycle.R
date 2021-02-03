@@ -120,7 +120,8 @@ subset(draws1, variable="f") %>%
   ggplot(aes(time, mu, group = .draw)) +
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
-  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
 
 #' ## GP with covariance matrices
 #' 
@@ -169,4 +170,5 @@ subset(draws2, variable="f") %>%
   ggplot(aes(time, mu, group = .draw)) +
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
-  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1) +
+  labs(x="Time (ms)", y="Acceleration (g)")
