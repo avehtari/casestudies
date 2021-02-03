@@ -105,6 +105,7 @@ cbind(mcycle,pred) %>%
   geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
   geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
 
+
 #' Sample using dynamic HMC
 #+ fit1, results='hide'
 fit1 <- model1$sample(data=standata1, iter_warmup=500, iter_sampling=500,
@@ -126,6 +127,32 @@ cbind(mcycle,pred) %>%
   geom_line(aes(y=Ef), color=set1[1])+
   geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
   geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' Plot posterior draws and posterior mean of the mean function
+subset(draws1, variable="f") %>%
+  thin_draws(thin=5)%>%
+  as_draws_df() %>%
+  pivot_longer(!starts_with("."),
+               names_to="ind",
+               names_transform = list(ind = readr::parse_number),
+               values_to="mu") %>%
+  mutate(time=mcycle$times[ind])%>%
+  ggplot(aes(time, mu, group = .draw)) +
+  geom_line(color=set1[2], alpha = 0.1) +
+  geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
+
+Ef <- colMeans(subset(draws1m, variable='f'))
+sigma <- colMeans(subset(draws1m, variable='sigma'))
+pred<-data.frame(Ef=Ef,sigma=sigma)
+cbind(mcycle,pred) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
 
 #' Compare the posterior draws to the optimized parameters
 optim<-as_draws_df(subset(odraws1, variable=c('sigma_g','lengthscale_g')))
@@ -195,6 +222,19 @@ cbind(mcycle,pred) %>%
   geom_line(aes(y=Ef), color=set1[1])+
   geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
   geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' Plot posterior draws and posterior mean of the mean function
+subset(draws2, variable="f") %>%
+  as_draws_df() %>%
+  pivot_longer(!starts_with("."),
+               names_to="ind",
+               names_transform = list(ind = readr::parse_number),
+               values_to="mu") %>%
+  mutate(time=mcycle$times[ind])%>%
+  ggplot(aes(time, mu, group = .draw)) +
+  geom_line(color=set1[2], alpha = 0.1) +
+  geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
 
 #' Compare the posterior draws to the optimized parameters
 optim<-as_draws_df(subset(odraws2, variable=c('sigma_g','lengthscale_g')))
