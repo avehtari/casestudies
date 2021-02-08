@@ -144,7 +144,7 @@ fit2 <- model2$sample(data=standata2, iter_warmup=100, iter_sampling=100,
 
 #' Check whether parameters have reasonable values
 draws2 <- fit2$draws()
-summarise_draws(subset(draws1, variable=c('sigma_','lengthscale_'), regex=TRUE))
+summarise_draws(subset(draws2, variable=c('sigma_','lengthscale_'), regex=TRUE))
 
 #' Compare the model to the data
 draws2m <- as_draws_matrix(draws2)
