@@ -34,7 +34,7 @@
 #' $$
 #' y \sim \mbox{normal}(f(x), \sigma)\\
 #' f \sim GP(0, K_1)\\
-#' \sigma \sim normal^{+}(0, 1),
+#' \sigma \sim \mbox{normal}^{+}(0, 1),
 #' $$
 #' and then with normal distribution having Gaussian process
 #' prior on mean and log standard deviation:
