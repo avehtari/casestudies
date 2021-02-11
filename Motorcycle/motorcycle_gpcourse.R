@@ -85,30 +85,31 @@ mcycle %>%
 #' 
 
 #' Model code
-file0 <- "gpcov0.stan"
-writeLines(readLines(file0))
+file_gpcovf <- "gpcovf.stan"
+writeLines(readLines(file_gpcovf))
 
 #' Compile Stan model
-model0 <- cmdstan_model(stan_file = file0)
+model_gpcovf <- cmdstan_model(stan_file = file_gpcovf)
 
 #' Data to be passed to Stan
-standata0 <- list(x=mcycle$times,
-                  x2=mcycle$times,
-                  y=mcycle$accel,
-                  N=length(mcycle$times),
-                  N2=length(mcycle$times))
+standata_gpcovf <- list(x=mcycle$times,
+                        x2=mcycle$times,
+                        y=mcycle$accel,
+                        N=length(mcycle$times),
+                        N2=length(mcycle$times))
 
 #' Optimize and find MAP estimate
-#+ opt0, results='hide'
-opt0 <- model0$optimize(data=standata0, init=0.1, algorithm='bfgs')
+#+ opt_gpcovf, results='hide'
+opt_gpcovf <- model_gpcovf$optimize(data=standata_gpcovf,
+                                    init=0.1, algorithm='bfgs')
 
 #' Check whether parameters have reasonable values
-odraws0 <- opt0$draws()
-subset(odraws0, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
+odraws_gpcovf <- opt_gpcovf$draws()
+subset(odraws_gpcovf, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 
 #' Compare the model to the data
-Ef <- as.numeric(subset(odraws0, variable='f'))
-sigma <- as.numeric(subset(odraws0, variable='sigma'))
+Ef <- as.numeric(subset(odraws_gpcovf, variable='f'))
+sigma <- as.numeric(subset(odraws_gpcovf, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -122,18 +123,21 @@ cbind(mcycle,pred) %>%
 #' considering the use of homoskedastic residual model.
 #' 
 #' Sample using dynamic HMC
-#+ fit0, results='hide'
-fit0 <- model0$sample(data=standata0, iter_warmup=500, iter_sampling=500,
-                      chains=4, parallel_chains=2, refresh=100)
+#+ fit_gpcovf, results='hide'
+fit_gpcovf <- model_gpcovf$sample(data=standata_gpcovf,
+                                  iter_warmup=500, iter_sampling=500,
+                                  chains=4, parallel_chains=2, refresh=100)
 
 #' Check whether parameters have reasonable values
-draws0 <- fit0$draws()
-summarise_draws(subset(draws0, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
+draws_gpcovf <- fit_gpcovf$draws()
+summarise_draws(subset(draws_gpcovf,
+                       variable=c('sigma_','lengthscale_','sigma'),
+                       regex=TRUE))
 
 #' Compare the model to the data
-draws0m <- as_draws_matrix(draws0)
-Ef <- colMeans(subset(draws0m, variable='f'))
-sigma <- colMeans(subset(draws0m, variable='sigma'))
+draws_gpcovf_m <- as_draws_matrix(draws_gpcovf)
+Ef <- colMeans(subset(draws_gpcovf_m, variable='f'))
+sigma <- colMeans(subset(draws_gpcovf_m, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -147,8 +151,11 @@ cbind(mcycle,pred) %>%
 #' optimized one.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as_draws_df(subset(odraws0, variable=c('sigma_f','lengthscale_f')))
-drawsdf<-as_draws_df(subset(draws0, variable=c('sigma_f','lengthscale_f')))%>%thin_draws(thin=5)
+optim<-as_draws_df(subset(odraws_gpcovf,
+                          variable=c('sigma_f','lengthscale_f')))
+drawsdf<-as_draws_df(subset(draws_gpcovf,
+                            variable=c('sigma_f','lengthscale_f')))%>%
+  thin_draws(thin=5)
 drawsdf%>%
   ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
@@ -164,11 +171,11 @@ drawsdf%>%
 #' representative).
 #' 
 #' Compare optimized and posterior predictive distributions
-Efo <- as.numeric(subset(odraws0, variable='f'))
-sigmao <- as.numeric(subset(odraws0, variable='sigma'))
-draws0m <- as_draws_matrix(draws0)
-Ef <- colMeans(subset(draws0m, variable='f'))
-sigma <- colMeans(subset(draws0m, variable='sigma'))
+Efo <- as.numeric(subset(odraws_gpcovf, variable='f'))
+sigmao <- as.numeric(subset(odraws_gpcovf, variable='sigma'))
+draws_gpcovf_m <- as_draws_matrix(draws_gpcovf)
+Ef <- colMeans(subset(draws_gpcovf_m, variable='f'))
+sigma <- colMeans(subset(draws_gpcovf_m, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma,Ef=Efo,sigma=sigmao)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -193,63 +200,73 @@ cbind(mcycle,pred) %>%
 #' only 10% of the data for model fitting.
 #' 
 #' Data to be passed to Stan
-mcycle00 <- mcycle[seq(1,133,by=10),]
-standata00 <- list(x=mcycle00$times,
-                   x2=mcycle$times,
-                   y=mcycle00$accel,
-                   N=length(mcycle00$times),
-                   N2=length(mcycle$times))
+mcycle_10p <- mcycle[seq(1,133,by=10),]
+standata_10p <- list(x=mcycle_10p$times,
+                     x2=mcycle$times,
+                     y=mcycle_10p$accel,
+                     N=length(mcycle_10p$times),
+                     N2=length(mcycle$times))
 
 #' Optimize and find MAP estimate
-#+ opt00, results='hide'
-opt00 <- model0$optimize(data=standata00, init=0.1, algorithm='lbfgs')
+#+ opt_10p, results='hide'
+opt_10p <- model_gpcovf$optimize(data=standata_10p, init=0.1,
+                                 algorithm='lbfgs')
 
 #' Check whether parameters have reasonable values
-odraws00 <- opt00$draws()
-subset(odraws00, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
+odraws_10p <- opt_10p$draws()
+subset(odraws_10p, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 
 #' Compare the model to the data
-Ef <- as.numeric(subset(odraws00, variable='f'))
-sigma <- as.numeric(subset(odraws00, variable='sigma'))
+Ef <- as.numeric(subset(odraws_10p, variable='f'))
+sigma <- as.numeric(subset(odraws_10p, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
-  ggplot(data=mcycle00,aes(x=times,y=accel))+
+ggplot(data=mcycle_10p,aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
   geom_line(data=mcycle,aes(x=times,y=Ef), color=set1[1])+
-  geom_line(data=mcycle,aes(x=times,y=Ef-2*sigma), color=set1[1],linetype="dashed")+
-  geom_line(data=mcycle,aes(x=times,y=Ef+2*sigma), color=set1[1],linetype="dashed")
+  geom_line(data=mcycle,aes(x=times,y=Ef-2*sigma), color=set1[1],
+            linetype="dashed")+
+  geom_line(data=mcycle,aes(x=times,y=Ef+2*sigma), color=set1[1],
+            linetype="dashed")
 
 #' The model fit is clearly over-fitted and over-confident.
 #' 
 #' Sample using dynamic HMC
-#+ fit00, results='hide'
-fit00 <- model0$sample(data=standata00, iter_warmup=1000, iter_sampling=1000,
-                       adapt_delta=0.95,
-                       chains=4, parallel_chains=2, refresh=100)
+#+ fit_10p, results='hide'
+fit_10p <- model_gpcovf$sample(data=standata_10p,
+                               iter_warmup=1000, iter_sampling=1000,
+                               adapt_delta=0.95,
+                               chains=4, parallel_chains=2, refresh=100)
 
 #' Check whether parameters have reasonable values
-draws00 <- fit00$draws()
-summarise_draws(subset(draws00, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
+draws_10p <- fit_10p$draws()
+summarise_draws(subset(draws_10p, variable=c('sigma_','lengthscale_','sigma'),
+                       regex=TRUE))
 
 #' Compare the model to the data
-draws00m <- as_draws_matrix(draws00)
-Ef <- colMeans(subset(draws00m, variable='f'))
-sigma <- colMeans(subset(draws00m, variable='sigma'))
+draws_10p_m <- as_draws_matrix(draws_10p)
+Ef <- colMeans(subset(draws_10p_m, variable='f'))
+sigma <- colMeans(subset(draws_10p_m, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
-  ggplot(data=mcycle00,aes(x=times,y=accel))+
+ggplot(data=mcycle_10p,aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
   geom_line(data=mcycle,aes(x=times,y=Ef), color=set1[1])+
-  geom_line(data=mcycle,aes(x=times,y=Ef-2*sigma), color=set1[1],linetype="dashed")+
-  geom_line(data=mcycle,aes(x=times,y=Ef+2*sigma), color=set1[1],linetype="dashed")
+  geom_line(data=mcycle,aes(x=times,y=Ef-2*sigma), color=set1[1],
+            linetype="dashed")+
+  geom_line(data=mcycle,aes(x=times,y=Ef+2*sigma), color=set1[1],
+            linetype="dashed")
 
 #' The posterior predictive distribution is much more conservative and
 #' shows the uncertainty due to having only a small number of
 #' observations.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as_draws_df(subset(odraws00, variable=c('sigma','sigma_f','lengthscale_f')))
-drawsdf<-as_draws_df(subset(draws00, variable=c('sigma','sigma_f','lengthscale_f')))%>%thin_draws(thin=5)
+optim<-as_draws_df(subset(odraws_10p,
+                          variable=c('sigma','sigma_f','lengthscale_f')))
+drawsdf<-as_draws_df(subset(draws_10p,
+                            variable=c('sigma','sigma_f','lengthscale_f')))%>%
+  thin_draws(thin=5)
 drawsdf%>%
   ggplot(aes(x=lengthscale_f,y=sigma))+
   geom_point(color=set1[2])+
@@ -265,10 +282,10 @@ drawsdf%>%
 #' uncertainty and the predictions thus are more uncertain, too.
 #' 
 #' Compare optimized and posterior predictive distributions
-Efo <- as.numeric(subset(odraws00, variable='f'))
-sigmao <- as.numeric(subset(odraws00, variable='sigma'))
-Ef <- colMeans(subset(draws00m, variable='f'))
-sigma <- colMeans(subset(draws00m, variable='sigma'))
+Efo <- as.numeric(subset(odraws_10p, variable='f'))
+sigmao <- as.numeric(subset(odraws_10p, variable='sigma'))
+Ef <- colMeans(subset(draws_10p_m, variable='f'))
+sigma <- colMeans(subset(draws_10p_m, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma,Ef=Efo,sigma=sigmao)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -308,28 +325,29 @@ cbind(mcycle,pred) %>%
 #' the latent values, but that is another story.
 #' 
 #' Model code
-file2 <- "gpcov.stan"
-writeLines(readLines(file2))
+file_gpcovfg <- "gpcovfg.stan"
+writeLines(readLines(file_gpcovfg))
 
 #' Compile Stan model
-model2 <- cmdstan_model(stan_file = file2)
+model_gpcovfg <- cmdstan_model(stan_file = file_gpcovfg)
 
 #' Data to be passed to Stan
-standata2 <- list(x=mcycle$times,
-                  y=mcycle$accel,
-                  N=length(mcycle$times))
+standata_gpcovfg <- list(x=mcycle$times,
+                         y=mcycle$accel,
+                         N=length(mcycle$times))
 
 #' Optimize and find MAP estimate
-#+ opt2, results='hide'
-opt2 <- model2$optimize(data=standata2, init=0.1, algorithm='bfgs')
+#+ opt_gpcovfg, results='hide'
+opt_gpcovfg <- model_gpcovfg$optimize(data=standata_gpcovfg,
+                                      init=0.1, algorithm='bfgs')
 
 #' Check whether parameters have reasonable values
-odraws2 <- opt2$draws()
-subset(odraws2, variable=c('sigma_','lengthscale_'), regex=TRUE)
+odraws_gpcovfg <- opt_gpcovfg$draws()
+subset(odraws_gpcovfg, variable=c('sigma_','lengthscale_'), regex=TRUE)
 
 #' Compare the model to the data
-Ef <- as.numeric(subset(odraws2, variable='f'))
-sigma <- as.numeric(subset(odraws2, variable='sigma'))
+Ef <- as.numeric(subset(odraws_gpcovfg, variable='f'))
+sigma <- as.numeric(subset(odraws_gpcovfg, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -344,18 +362,20 @@ cbind(mcycle,pred) %>%
 #' values.
 #' 
 #' Sample using dynamic HMC
-#+ fit2, results='hide'
-fit2 <- model2$sample(data=standata2, iter_warmup=100, iter_sampling=100,
-                      chains=4, parallel_chains=2, refresh=10)
+#+ fit_gpcovfg, results='hide'
+fit_gpcovfg <- model_gpcovfg$sample(data=standata_gpcovfg,
+                                    iter_warmup=100, iter_sampling=100,
+                                    chains=4, parallel_chains=2, refresh=10)
 
 #' Check whether parameters have reasonable values
-draws2 <- fit2$draws()
-summarise_draws(subset(draws2, variable=c('sigma_','lengthscale_'), regex=TRUE))
+draws_gpcovfg <- fit_gpcovfg$draws()
+summarise_draws(subset(draws_gpcovfg, variable=c('sigma_','lengthscale_'),
+                       regex=TRUE))
 
 #' Compare the model to the data
-draws2m <- as_draws_matrix(draws2)
-Ef <- colMeans(subset(draws2m, variable='f'))
-sigma <- colMeans(subset(draws2m, variable='sigma'))
+draws_gpcovfg_m <- as_draws_matrix(draws_gpcovfg)
+Ef <- colMeans(subset(draws_gpcovfg_m, variable='f'))
+sigma <- colMeans(subset(draws_gpcovfg_m, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -368,7 +388,7 @@ cbind(mcycle,pred) %>%
 #' The MCMC integration works well and the model fit looks good.
 #' 
 #' Plot posterior draws and posterior mean of the mean function
-subset(draws2, variable="f") %>%
+subset(draws_gpcovfg, variable="f") %>%
   as_draws_df() %>%
   pivot_longer(!starts_with("."),
                names_to="ind",
@@ -378,7 +398,9 @@ subset(draws2, variable="f") %>%
   ggplot(aes(time, mu, group = .draw)) +
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
-  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef),
+            inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
 
 #' We can also plot the posterior draws of the latent functions, which
 #' is a good reminder that individual draws are more wiggly than the
@@ -386,8 +408,10 @@ subset(draws2, variable="f") %>%
 #' for example, in the edge of the data.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as_draws_df(subset(odraws2, variable=c('sigma_g','lengthscale_g')))
-drawsdf<-as_draws_df(subset(draws2, variable=c('sigma_g','lengthscale_g')))
+optim<-as_draws_df(subset(odraws_gpcovfg,
+                          variable=c('sigma_g','lengthscale_g')))
+drawsdf<-as_draws_df(subset(draws_gpcovfg,
+                            variable=c('sigma_g','lengthscale_g')))
 drawsdf%>%
   ggplot(aes(x=lengthscale_g,y=sigma_g))+
   geom_point(color=set1[2])+
@@ -430,7 +454,8 @@ standatabf0 <- list(x=seq(0,1,length.out=100),
                     sigma_f=1,
                     lengthscale_f=1) 
 #' Generate basis functions
-fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE, iter=1, iter_sampling=1)
+fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
+                          iter=1, iter_sampling=1)
 #' There is certainly easier way to do this, but this is what I came up quickly
 q<-subset(fixbf0$draws(), variable="PHI_f") %>%
   as_draws_matrix() %>%
@@ -440,10 +465,10 @@ q<-subset(fixbf0$draws(), variable="PHI_f") %>%
 id <- rownames(q)
 q <- cbind(x=as.numeric(id), q)
 q <- q %>%
-pivot_longer(!x,
-             names_to="ind",
-             names_transform = list(ind = readr::parse_number),
-             values_to="f")%>%
+  pivot_longer(!x,
+               names_to="ind",
+               names_transform = list(ind = readr::parse_number),
+               values_to="f")%>%
   mutate(x=x/100)
 
 #' Plot 10 first basis functions
@@ -453,33 +478,37 @@ q %>%
   geom_line() +
   facet_grid(rows=vars(ind))
 
+#' And now the actual model using GP basis functions for f and g
+#' 
 #' Model code
-file1 <- "gpbf1.stan"
-writeLines(readLines(file1))
+file_gpbffg <- "gpbffg.stan"
+writeLines(readLines(file_gpbffg))
 
 #' Compile Stan model
-model1 <- cmdstan_model(stan_file = file1, include_paths = ".")
+model_gpbffg <- cmdstan_model(stan_file = file_gpbffg, include_paths = ".")
 
 #' Data to be passed to Stan
-standata1 <- list(x=mcycle$times,
-                  y=mcycle$accel,
-                  N=length(mcycle$times),
-                  c_f=1.5, # factor c of basis functions for GP for f1
-                  M_f=40,  # number of basis functions for GP for f1
-                  c_g=1.5, # factor c of basis functions for GP for g3
-                  M_g=40)  # number of basis functions for GP for g3
+standata_gpbffg <- list(x=mcycle$times,
+                        y=mcycle$accel,
+                        N=length(mcycle$times),
+                        c_f=1.5, # factor c of basis functions for GP for f1
+                        M_f=40,  # number of basis functions for GP for f1
+                        c_g=1.5, # factor c of basis functions for GP for g3
+                        M_g=40)  # number of basis functions for GP for g3
 
 #' Optimize and find MAP estimate
-#+ opt1, results='hide'
-opt1 <- model1$optimize(data=standata1, init=0.1, algorithm='bfgs')
+#+ opt_gpbffg, results='hide'
+opt_gpbffg <- model_gpbffg$optimize(data=standata_gpbffg,
+                                    init=0.1, algorithm='bfgs')
 
 #' Check whether parameters have reasonable values
-odraws1 <- opt1$draws()
-subset(odraws1, variable=c('intercept','sigma_','lengthscale_'), regex=TRUE)
+odraws_gpbffg <- opt_gpbffg$draws()
+subset(odraws_gpbffg, variable=c('intercept','sigma_','lengthscale_'),
+       regex=TRUE)
 
 #' Compare the model to the data
-Ef <- as.numeric(subset(odraws1, variable='f'))
-sigma <- as.numeric(subset(odraws1, variable='sigma'))
+Ef <- as.numeric(subset(odraws_gpbffg, variable='f'))
+sigma <- as.numeric(subset(odraws_gpbffg, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -494,18 +523,21 @@ cbind(mcycle,pred) %>%
 #' function co-efficients.
 #' 
 #' Sample using dynamic HMC
-#+ fit1, results='hide'
-fit1 <- model1$sample(data=standata1, iter_warmup=500, iter_sampling=500,
-                      chains=4, parallel_chains=2, adapt_delta=0.9)
+#+ fit_gpbffg, results='hide'
+fit_gpbffg <- model_gpbffg$sample(data=standata_gpbffg,
+                                  iter_warmup=500, iter_sampling=500,
+                                  chains=4, parallel_chains=2, adapt_delta=0.9)
 
 #' Check whether parameters have reasonable values
-draws1 <- fit1$draws()
-summarise_draws(subset(draws1, variable=c('intercept','sigma_','lengthscale_'), regex=TRUE))
+draws_gpbffg <- fit_gpbffg$draws()
+summarise_draws(subset(draws_gpbffg,
+                       variable=c('intercept','sigma_','lengthscale_'),
+                       regex=TRUE))
 
 #' Compare the model to the data
-draws1m <- as_draws_matrix(draws1)
-Ef <- colMeans(subset(draws1m, variable='f'))
-sigma <- colMeans(subset(draws1m, variable='sigma'))
+draws_gpbffg_m <- as_draws_matrix(draws_gpbffg)
+Ef <- colMeans(subset(draws_gpbffg_m, variable='f'))
+sigma <- colMeans(subset(draws_gpbffg_m, variable='sigma'))
 pred<-data.frame(Ef=Ef,sigma=sigma)
 cbind(mcycle,pred) %>%
   ggplot(aes(x=times,y=accel))+
@@ -518,7 +550,7 @@ cbind(mcycle,pred) %>%
 #' The MCMC integration works well and the model fit looks good.
 #' 
 #' Plot posterior draws and posterior mean of the mean function
-subset(draws1, variable="f") %>%
+subset(draws_gpbffg, variable="f") %>%
   thin_draws(thin=5)%>%
   as_draws_df() %>%
   pivot_longer(!starts_with("."),
@@ -529,7 +561,9 @@ subset(draws1, variable="f") %>%
   ggplot(aes(time, mu, group = .draw)) +
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
-  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef), inherit.aes=FALSE, color=set1[1], size=1)
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef),
+            inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
 
 #' We can also plot the posterior draws of the latent functions, which
 #' is a good reminder that individual draws are more wiggly than the
@@ -537,9 +571,10 @@ subset(draws1, variable="f") %>%
 #' for example, in the edge of the data.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as_draws_df(subset(odraws1, variable=c('sigma_g','lengthscale_g')))
-optim<-as_draws_df(subset(odraws1, variable=c('sigma_g','lengthscale_g')))
-drawsdf<-as_draws_df(subset(draws1, variable=c('sigma_g','lengthscale_g')))
+optim<-as_draws_df(subset(odraws_gpbffg,
+                          variable=c('sigma_g','lengthscale_g')))
+drawsdf<-as_draws_df(subset(draws_gpbffg,
+                            variable=c('sigma_g','lengthscale_g')))
 drawsdf%>%
   ggplot(aes(x=lengthscale_g,y=sigma_g))+
   geom_point(color=set1[2])+
@@ -551,4 +586,75 @@ drawsdf%>%
 
 #' Optimization result is far from being representative of the
 #' posterior.
+#' 
+
+#' ## GP model with Hilbert basis functions and Matern covariance
+#' 
+#' Exponentiated quadratic is sometimes considered to be too smooth as
+#' all the derivatives are continuos. For comparison we use Matern
+#' covariance. The Hilbert space basis functions are the same and only
+#' the spectral density values change (that is different basis
+#' functions have a different weighting).
+#' 
+#' Model code
+file_gpbffg2 <- "gpbffg_matern.stan"
+writeLines(readLines(file_gpbffg2))
+
+#' Compile Stan model
+model_gpbffg2 <- cmdstan_model(stan_file = file_gpbffg2, include_paths = ".")
+
+#' Data to be passed to Stan
+standata_gpbffg2 <- list(x=mcycle$times,
+                        y=mcycle$accel,
+                        N=length(mcycle$times),
+                        c_f=1.5, # factor c of basis functions for GP for f1
+                        M_f=40,  # number of basis functions for GP for f1
+                        c_g=1.5, # factor c of basis functions for GP for g3
+                        M_g=40)  # number of basis functions for GP for g3
+
+#' Sample using dynamic HMC
+#+ fit_gpbffg2, results='hide'
+fit_gpbffg2 <- model_gpbffg2$sample(data=standata_gpbffg2,
+                                  iter_warmup=500, iter_sampling=500,
+                                  chains=4, parallel_chains=2, adapt_delta=0.9)
+
+#' Check whether parameters have reasonable values
+draws_gpbffg2 <- fit_gpbffg2$draws()
+summarise_draws(subset(draws_gpbffg2,
+                       variable=c('intercept','sigma_','lengthscale_'),
+                       regex=TRUE))
+
+#' Compare the model to the data
+draws_gpbffg2_m <- as_draws_matrix(draws_gpbffg2)
+Ef <- colMeans(subset(draws_gpbffg2_m, variable='f'))
+sigma <- colMeans(subset(draws_gpbffg2_m, variable='sigma'))
+pred<-data.frame(Ef=Ef,sigma=sigma)
+cbind(mcycle,pred) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' The MCMC integration works well and the model fit looks good.
+#' 
+#' Plot posterior draws and posterior mean of the mean function
+subset(draws_gpbffg2, variable="f") %>%
+  thin_draws(thin=5)%>%
+  as_draws_df() %>%
+  pivot_longer(!starts_with("."),
+               names_to="ind",
+               names_transform = list(ind = readr::parse_number),
+               values_to="mu") %>%
+  mutate(time=mcycle$times[ind])%>%
+  ggplot(aes(time, mu, group = .draw)) +
+  geom_line(color=set1[2], alpha = 0.1) +
+  geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
+  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef),
+            inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
+
+#' We see that when using Matern covariance instead of the
+#' exponentiated quadratic, the model fit is more wigggly.
 #' 

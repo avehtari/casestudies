@@ -21,10 +21,10 @@ transformed data {
   vector[N] yn = (y - ymean)/ysd;
   // Basis functions for f
   real L_f = c_f*max(xn);
-  matrix[N,M_f] PHI_f = PHI_EQ(N, M_f, L_f, xn);
+  matrix[N,M_f] PHI_f = PHI(N, M_f, L_f, xn);
   // Basis functions for g
   real L_g= c_g*max(xn);
-  matrix[N,M_g] PHI_g = PHI_EQ(N, M_g, L_g, xn);
+  matrix[N,M_g] PHI_g = PHI(N, M_g, L_g, xn);
 }
 parameters {
   real intercept;              // 
@@ -37,8 +37,8 @@ parameters {
 }
 model {
   // spectral densities for f and g
-  vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
-  vector[M_g] diagSPD_g = diagSPD_EQ(sigma_g, lengthscale_g, L_g, M_g);
+  vector[M_f] diagSPD_f = diagSPD_matern(sigma_f, lengthscale_f, L_f, M_f);
+  vector[M_g] diagSPD_g = diagSPD_matern(sigma_g, lengthscale_g, L_g, M_g);
   // priors
   intercept ~ normal(0, 1);
   beta_f ~ normal(0, 1);
@@ -56,8 +56,8 @@ generated quantities {
   vector[N] sigma;
   {
     // spectral densities
-    vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
-    vector[M_g] diagSPD_g = diagSPD_EQ(sigma_g, lengthscale_g, L_g, M_g);
+    vector[M_f] diagSPD_f = diagSPD_matern(sigma_f, lengthscale_f, L_f, M_f);
+    vector[M_g] diagSPD_g = diagSPD_matern(sigma_g, lengthscale_g, L_g, M_g);
     // function scaled back to the original scale
     f = (intercept + PHI_f * (diagSPD_f .* beta_f))*ysd + ymean;
     sigma = exp(PHI_g * (diagSPD_g .* beta_g))*ysd;
