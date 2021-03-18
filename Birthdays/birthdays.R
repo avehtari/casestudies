@@ -18,6 +18,8 @@
 #' components that can explain the long term, seasonal, weekly, day of
 #' year, and special floatind day variation.
 #'
+#' Stan model codes are available in [the corresponding git repo](https://github.com/avehtari/casestudies/tree/master/Birthdays)
+#'
 #' -------------
 #' 
 
@@ -165,7 +167,7 @@ data %>%
 #' Riutort-Mayol et al., 2020).
 #'
 
-#' Compile Stan model
+#' Compile Stan model [gpbf1.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf1.stan) which includes [gpbasisfun_functions.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions.stan)
 #+ model1, results='hide'
 model1 <- cmdstan_model(stan_file = root("Birthdays", "gpbf1.stan"),
                         include_paths = root("Birthdays"))
@@ -314,7 +316,7 @@ data %>%
 #' short MCMC chains and sampling diagnostic tools were crucial for
 #' fast experimentation and solving the problem.
 #' 
-#' Compile Stan model 2 (the fixed version)
+#' Compile Stan model 2 (the fixed version) [gpbf2.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf2.stan)
 #+ model2, results='hide'
 model2 <- cmdstan_model(stan_file = root("Birthdays", "gpbf2.stan"),
                         include_paths = root("Birthdays"))
@@ -429,7 +431,7 @@ pf / (pf1 + pf2)
 #' \beta_{\mbox{day of week}} \sim \mbox{normal}(0,1) \quad \mbox{if day of week is not Monday}
 #' $$
 #' 
-#' Compile Stan model 3
+#' Compile Stan model 3 [gpbf3.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf3.stan)
 #+ model3, results='hide'
 model3 <- cmdstan_model(stan_file = root("Birthdays", "gpbf3.stan"),
                         include_paths = root("Birthdays"))
@@ -568,7 +570,7 @@ pf3 <- ggplot(data=data, aes(x=day_of_week, y=births_relative100)) + geom_point(
 #' where $g_3$ has GP prior with zero mean and exponentiated quadratic
 #' covariance function.
 #' 
-#' Compile Stan model 4
+#' Compile Stan model 4 [gpbf4.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf4.stan)
 #+ model4, results='hide'
 model4 <- cmdstan_model(stan_file = root("Birthdays", "gpbf4.stan"),
                         include_paths = root("Birthdays"))
@@ -738,7 +740,7 @@ pf3b <- data %>%
 #' to test the model. As part of the quick iterative model building it
 #' was better to give up on this model for a moment.
 #'
-#' Compile Stan model 5
+#' Compile Stan model 5 [gpbf5.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf5.stan)
 #+ model5, results='hide'
 model5 <- cmdstan_model(stan_file = root("Birthdays", "gpbf5.stan"),
                         include_paths = root("Birthdays"))
@@ -840,7 +842,7 @@ pf2b <-data.frame(x=as.Date("1959-12-31")+1:366, y=Ef4) %>%
 #' \beta_{\mbox{day of year}} \sim \mbox{normal}(0,0.1)
 #' $$
 #' 
-#' Compile Stan model 6
+#' Compile Stan model 6 [gpbf6.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf6.stan)
 #+ model6, results='hide'
 model6 <- cmdstan_model(stan_file = root("Birthdays", "gpbf6.stan"),
                         include_paths = root("Birthdays"))
@@ -967,7 +969,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4) %>%
 #' components before investing that part more thoroughly.
 #' 
 
-#' Model 7: long term smooth + seasonal + weekday + day of year normal + floating special days
+#' ### Model 7: long term smooth + seasonal + weekday + day of year normal + floating special days
 #'
 #' We can see in the model 6 results that day of year effects have
 #' some dips in the relative number of births that are spread over a
@@ -979,7 +981,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4) %>%
 #' Thanksgiving (fourth Thursday of November, and we include also the
 #' following Friday).
 #'
-#' Compile Stan model 7
+#' Compile Stan model 7 [gpbf7.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf7.stan)
 #+ model7, results='hide'
 model7 <- cmdstan_model(stan_file = root("Birthdays", "gpbf7.stan"),
                         include_paths = root("Birthdays"))
@@ -1113,7 +1115,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #' As the day of year and floating day effects work well, we'll add
 #' the time dependent day of week effect back to the model.
 #' 
-#' Compile Stan model 8
+#' Compile Stan model 8 [gpbf8.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf8.stan)
 #+ model8, results='hide'
 model8 <- cmdstan_model(stan_file = root("Birthdays", "gpbf8.stan"),
                         include_paths = root("Birthdays"))
@@ -1328,7 +1330,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #'
 #' ### Model 8+t_nu: day of year effect with Student's t prior
 #' 
-#' Compile Stan model 8 + t_nu
+#' Compile Stan model 8 + t_nu [gpbf8tnu.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf8tnu.stan)
 #+ model8tnu, results='hide'
 model8tnu <- cmdstan_model(stan_file = root("Birthdays", "gpbf8tnu.stan"),
                            include_paths = root("Birthdays"))
@@ -1476,7 +1478,7 @@ loo_compare(list(`Model 8 normal`=loo8,`Model 8 Student\'s t`=loo8tnu))
 #' non-centered to centered parameterization by removing the multplier
 #' from one of the parameter declarations).
 #'
-#' Compile Stan model 8 + RHS
+#' Compile Stan model 8 + RHS [gpbf8rhs.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf8rhs.stan)
 #+ model8rhs, results='hide'
 model8rhs <- cmdstan_model(stan_file = root("Birthdays", "gpbf8rhs.stan"),
                            include_paths = root("Birthdays"))
