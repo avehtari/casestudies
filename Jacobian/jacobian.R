@@ -49,6 +49,7 @@ data_bin <- list(N = 10, y = 9)
 #' sample from the posterior, and compare different posterior density
 #' values that we can ask Stan to compute.
 code_binom <- "binom.stan"
+writeLines(readLines(code_binom))
 model_bin <- stan_model(file = code_binom)
 
 #' Default MCMC sampling (as this is an easy posterior we skip showing
