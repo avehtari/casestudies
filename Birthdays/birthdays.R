@@ -832,7 +832,7 @@ pf2b <-data.frame(x=as.Date("1959-12-31")+1:366, y=Ef4) %>%
 #' the day of year effect.
 #'
 #' $$
-#' f = \mbox{intercept} + f_1 + f_2 + \exp(g_3)\beta_{\mbox{day of week}} + \beta_{\mbox{day of year}}\\
+#' f = \mbox{intercept} + f_1 + f_2 + \beta_{\mbox{day of week}} + \beta_{\mbox{day of year}}\\
 #' \mbox{intercept} \sim \mbox{normal}(0,1)\\
 #' f_1 \sim \mbox{GP}(0,K_1)\\
 #' f_2 \sim \mbox{GP}(0,K_2)\\
