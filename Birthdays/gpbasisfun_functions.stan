@@ -13,9 +13,16 @@ vector diagSPD_periodic(real alpha, real rho, int M) {
   return append_row(q,q);
 }
 matrix PHI_EQ(int N, int M, real L, vector x) {
-  return sin(diag_post_multiply(rep_matrix(pi()/(2*L) * (x+L), M), linspaced_vector(M, 1, M)))/sqrt(L);
+//  return sin(diag_post_multiply(rep_matrix(pi()/(2*L) * (x+L), M), linspaced_vector(M, 1, M)))/sqrt(L);
+  matrix[N,M] PHI = sin(diag_post_multiply(rep_matrix(pi()/(2*L) * (x+L), M), linspaced_vector(M, 1, M)))/sqrt(L);
+  for (m in 1:M)
+    PHI[,m] = PHI[,m] - mean(PHI[,m]);
+  return PHI;
 }
 matrix PHI_periodic(int N, int M, real w0, vector x) {
   matrix[N,M] mw0x = diag_post_multiply(rep_matrix(w0*x, M), linspaced_vector(M, 1, M));
-  return append_col(cos(mw0x), sin(mw0x));
+  matrix[N,M] PHI = append_col(cos(mw0x), sin(mw0x));
+  for (m in 1:M)
+    PHI[,m] = PHI[,m] - mean(PHI[,m]);
+  return PHI;
 }

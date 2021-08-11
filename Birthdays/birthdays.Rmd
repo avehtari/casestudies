@@ -186,7 +186,7 @@ later examine more carefully whether the number of basis function
 is sufficient compared to the posterior of the length scale (see,
 Riutort-Mayol et al., 2020).
 
-Compile Stan model [gpbf1.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf1.stan) which includes [gpbasisfun_functions.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions.stan)
+Compile Stan model [gpbf1.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf1.stan) which includes [gpbasisfun_functions1.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions1.stan)
 
 ```{r model1, results='hide'}
 model1 <- cmdstan_model(stan_file = root("Birthdays", "gpbf1.stan"),
@@ -345,6 +345,51 @@ data %>%
   geom_abline() +
   labs(x="Ef from short Markov chain", y="Ef from optimizing")
 ```
+
+The original notebook continued using the
+[gpbasisfun_functions1.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions1.stan)
+used above. Much later [Nikolas Siccha examined more carefully the
+posterior correlations](https://github.com/nsiccha/birthday) and
+noticed strong correlation between intercept and the first basis
+function. Stan's dynamic HMC is so efficient that the inference is
+succesful anyway. While Nikolas suggested removing the intercept
+term, the better solution is to make the basis functions to have
+zero means. We should have noticed to do that already for
+Riutort-Mayol et al., (2020) paper, but missed that.
+
+File
+[gpbasisfun_functions.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions.stan)
+has the fixed code which makes the basis functions to have zero
+mean.
+
+
+```{r model1b, results='hide'}
+model1b <- cmdstan_model(stan_file = root("Birthdays", "gpbf1b.stan"),
+                        include_paths = root("Birthdays"))
+```
+```{r fit1b, results='hide'}
+fit1b <- model1b$sample(data=standata1, iter_warmup=100, iter_sampling=100,
+                      chains=4, parallel_chains=4, seed=3891)
+```
+
+With the better posterior geometry, it is unlikely that we get
+stuck in a local mode even with the random inits.
+
+```{r }
+draws1b <- fit1b$draws()
+summarise_draws(subset(draws1b, variable=c('intercept','sigma_f1','lengthscale_f1','sigma')))
+```
+
+Examining the trace plots shows better behavior.
+
+```{r }
+mcmc_trace(draws1b, regex_pars=c('intercept','sigma_f1','lengthscale_f1','sigma'))
+```
+
+The remaining models use the zero mean basis functions which
+produce better posterior geometry.  We'll however keep using the
+optimization inits for the remaining samplings to get some
+speed-up.
 
 ### Model 2: Slow trend + yearly seasonal trend
 
@@ -970,7 +1015,7 @@ day of week effect and RHS for a moment and use normal prior for
 the day of year effect.
 
 $$
-f = \mbox{intercept} + f_1 + f_2 + \exp(g_3)\beta_{\mbox{day of week}} + \beta_{\mbox{day of year}}\\
+f = \mbox{intercept} + f_1 + f_2 + \beta_{\mbox{day of week}} + \beta_{\mbox{day of year}}\\
 \mbox{intercept} \sim \mbox{normal}(0,1)\\
 f_1 \sim \mbox{GP}(0,K_1)\\
 f_2 \sim \mbox{GP}(0,K_2)\\
