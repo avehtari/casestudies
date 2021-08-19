@@ -354,8 +354,8 @@ mcycle %>%
 #' Sample using dynamic HMC
 #+ fit_gpcovfg, results='hide'
 fit_gpcovfg <- model_gpcovfg$sample(data=standata_gpcovfg,
-                                    iter_warmup=100, iter_sampling=100,
-                                    chains=4, parallel_chains=4, refresh=10)
+                                    iter_warmup=100, iter_sampling=200,
+                                    chains=4, parallel_chains=4, refresh=20)
 
 #' Check whether parameters have reasonable values
 draws_gpcovfg <- as_draws_rvars(fit_gpcovfg$draws())
@@ -377,7 +377,6 @@ mcycle %>%
 #' 
 #' Plot posterior draws and posterior mean of the mean function
 draws_gpcovfg %>%
-  thin_draws(thin=5) %>%
   spread_rvars(f[i]) %>%
   unnest_rvars() %>%
   mutate(time=mcycle$times[i]) %>%
@@ -396,7 +395,6 @@ draws_gpcovfg %>%
 #' Compare the posterior draws to the optimized parameters
 odraws_gpcovfg <- as_draws_df(opt_gpcovfg$draws())
 draws_gpcovfg %>%
-  thin_draws(thin=5) %>%
   as_draws_df() %>%
   ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
