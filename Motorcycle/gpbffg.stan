@@ -21,10 +21,10 @@ transformed data {
   vector[N] yn = (y - ymean)/ysd;
   // Basis functions for f
   real L_f = c_f*max(xn);
-  matrix[N,M_f] PHI_f = PHI_EQ(N, M_f, L_f, xn);
+  matrix[N,M_f] PHI_f = PHI(N, M_f, L_f, xn);
   // Basis functions for g
   real L_g= c_g*max(xn);
-  matrix[N,M_g] PHI_g = PHI_EQ(N, M_g, L_g, xn);
+  matrix[N,M_g] PHI_g = PHI(N, M_g, L_g, xn);
 }
 parameters {
   real intercept_f;

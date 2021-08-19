@@ -51,6 +51,7 @@ knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE, comment=NA, cac
 #' #### Load packages
 library(cmdstanr) 
 library(posterior)
+library(tidybayes)
 options(pillar.neg = FALSE, pillar.subtle=FALSE, pillar.sigfig=2)
 library(tidyr) 
 library(dplyr) 
@@ -148,18 +149,17 @@ mcycle %>%
 #' optimized one.
 #' 
 #' Compare the posterior draws to the optimized parameters
-
-draws_gpcovf[c('sigma_f','lengthscale_f')] %>%
-  thin_draws(thin=5) %>%
+odraws_gpcovf <- as_draws_df(opt_gpcovf$draws())
+draws_gpcovf %>%
   as_draws_df() %>%
   ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
-  geom_point(data=as_draws_df(odraws_gpcovf),color=set1[1],size=4)+
+  geom_point(data=odraws_gpcovf,color=set1[1],size=4)+
   annotate("text",x=median(draws_gpcovf$lengthscale_f),
            y=max(draws_gpcovf$sigma_f)+0.1,
            label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
-  annotate("text",x=median(odraws_gpcovf$lengthscale_f)+0.01,
-           y=median(odraws_gpcovf$sigma_f),
+  annotate("text",x=odraws_gpcovf$lengthscale_f+0.01,
+           y=odraws_gpcovf$sigma_f,
            label='Optimized',hjust=0,color=set1[1],size=6)
 
 #' The optimization result is in the middle of the posterior and quite
@@ -168,6 +168,7 @@ draws_gpcovf[c('sigma_f','lengthscale_f')] %>%
 #' representative).
 #' 
 #' Compare optimized and posterior predictive distributions
+odraws_gpcovf <- as_draws_rvars(opt_gpcovf$draws())
 mcycle %>%
   mutate(Ef=mean(draws_gpcovf$f),
          sigma=mean(draws_gpcovf$sigma),
@@ -208,20 +209,18 @@ opt_10p <- model_gpcovf$optimize(data=standata_10p, init=0.1,
                                  algorithm='lbfgs')
 
 #' Check whether parameters have reasonable values
-odraws_10p <- opt_10p$draws()
+odraws_10p <- as_draws_rvars(opt_10p$draws())
 subset(odraws_10p, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 
 #' Compare the model to the data
-Ef <- as.numeric(subset(odraws_10p, variable='f'))
-sigma <- as.numeric(subset(odraws_10p, variable='sigma'))
-pred<-data.frame(Ef=Ef,sigma=sigma)
-ggplot(data=mcycle_10p,aes(x=times,y=accel))+
+mcycle_10p %>%
+  ggplot(aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
-  geom_line(data=mcycle,aes(x=times,y=Ef), color=set1[1])+
-  geom_line(data=mcycle,aes(x=times,y=Ef-2*sigma), color=set1[1],
+  geom_line(data=mcycle,aes(x=times,y=mean(odraws_10p$f)), color=set1[1])+
+  geom_line(data=mcycle,aes(x=times,y=mean(odraws_10p$f-2*odraws_10p$sigma)), color=set1[1],
             linetype="dashed")+
-  geom_line(data=mcycle,aes(x=times,y=Ef+2*sigma), color=set1[1],
+  geom_line(data=mcycle,aes(x=times,y=mean(odraws_10p$f+2*odraws_10p$sigma)), color=set1[1],
             linetype="dashed")
 
 #' The model fit is clearly over-fitted and over-confident.
@@ -234,22 +233,19 @@ fit_10p <- model_gpcovf$sample(data=standata_10p,
                                chains=4, parallel_chains=4, refresh=100)
 
 #' Check whether parameters have reasonable values
-draws_10p <- fit_10p$draws()
+draws_10p <- as_draws_rvars(fit_10p$draws())
 summarise_draws(subset(draws_10p, variable=c('sigma_','lengthscale_','sigma'),
                        regex=TRUE))
 
 #' Compare the model to the data
-draws_10p_m <- as_draws_matrix(draws_10p)
-Ef <- colMeans(subset(draws_10p_m, variable='f'))
-sigma <- colMeans(subset(draws_10p_m, variable='sigma'))
-pred<-data.frame(Ef=Ef,sigma=sigma)
-ggplot(data=mcycle_10p,aes(x=times,y=accel))+
+mcycle_10p %>%
+  ggplot(aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
-  geom_line(data=mcycle,aes(x=times,y=Ef), color=set1[1])+
-  geom_line(data=mcycle,aes(x=times,y=Ef-2*sigma), color=set1[1],
+  geom_line(data=mcycle,aes(x=times,y=mean(draws_10p$f)), color=set1[1])+
+  geom_line(data=mcycle,aes(x=times,y=mean(draws_10p$f-2*draws_10p$sigma)), color=set1[1],
             linetype="dashed")+
-  geom_line(data=mcycle,aes(x=times,y=Ef+2*sigma), color=set1[1],
+  geom_line(data=mcycle,aes(x=times,y=mean(draws_10p$f+2*draws_10p$sigma)), color=set1[1],
             linetype="dashed")
 
 #' The posterior predictive distribution is much more conservative and
@@ -257,18 +253,18 @@ ggplot(data=mcycle_10p,aes(x=times,y=accel))+
 #' observations.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as_draws_df(subset(odraws_10p,
-                          variable=c('sigma','sigma_f','lengthscale_f')))
-drawsdf<-as_draws_df(subset(draws_10p,
-                            variable=c('sigma','sigma_f','lengthscale_f')))%>%
-  thin_draws(thin=5)
-drawsdf%>%
-  ggplot(aes(x=lengthscale_f,y=sigma))+
+odraws_10p <- as_draws_df(opt_10p$draws())
+draws_10p %>%
+  thin_draws(thin=5) %>%
+  as_draws_df() %>%
+  ggplot(aes(x=sigma,y=sigma_f))+
   geom_point(color=set1[2])+
-  geom_point(data=optim,color=set1[1],size=4)+
-  annotate("text",x=median((drawsdf$lengthscale_f)),y=max((drawsdf$sigma))+0.1,
+  geom_point(data=odraws_10p,color=set1[1],size=4)+
+  annotate("text",x=median(draws_10p$sigma),
+           y=max(draws_10p$sigma_f)+0.1,
            label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
-  annotate("text",x=(optim$lengthscale_f+0.01),y=(optim$sigma),
+  annotate("text",x=odraws_10p$sigma+0.01,
+           y=odraws_10p$sigma_f,
            label='Optimized',hjust=0,color=set1[1],size=6)
 
 #' The optimization result is in the edge of the posterior close to
@@ -277,12 +273,12 @@ drawsdf%>%
 #' uncertainty and the predictions thus are more uncertain, too.
 #' 
 #' Compare optimized and posterior predictive distributions
-Efo <- as.numeric(subset(odraws_10p, variable='f'))
-sigmao <- as.numeric(subset(odraws_10p, variable='sigma'))
-Ef <- colMeans(subset(draws_10p_m, variable='f'))
-sigma <- colMeans(subset(draws_10p_m, variable='sigma'))
-pred<-data.frame(Ef=Ef,sigma=sigma,Ef=Efo,sigma=sigmao)
-cbind(mcycle,pred) %>%
+odraws_10p <- as_draws_rvars(opt_10p$draws())
+mcycle %>%
+  mutate(Ef=mean(draws_10p$f),
+         sigma=mean(draws_10p$sigma),
+         Efo=mean(odraws_10p$f),
+         sigmao=mean(odraws_10p$sigma)) %>%
   ggplot(aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
@@ -361,17 +357,6 @@ fit_gpcovfg <- model_gpcovfg$sample(data=standata_gpcovfg,
                                     iter_warmup=100, iter_sampling=100,
                                     chains=4, parallel_chains=4, refresh=10)
 
-## cpp_options <- list(
-##   "CXXFLAGS" = "-O3 -mtune=native -march=native -Wno-unused-variable -Wno-unused-function",
-##   "CXX14FLAGS" = "-O3 -mtune=native -march=native -Wno-unused-variable -Wno-unused-function",
-##   PRECOMPILED_HEADERS = TRUE,
-##   MAKEFLAGS = "-j4"
-## )
-## cmdstan_make_local(cpp_options = cpp_options)
-## rebuild_cmdstan()
-## cmdstanr::rebuild_cmdstan(dir = cmdstan_dir, cores = cores)
-## cpp_options = list("CXX14FLAGS" = "-O3")
-
 #' Check whether parameters have reasonable values
 draws_gpcovfg <- as_draws_rvars(fit_gpcovfg$draws())
 summarise_draws(subset(draws_gpcovfg, variable=c('sigma_','lengthscale_'),
@@ -391,11 +376,12 @@ mcycle %>%
 #' The MCMC integration works well and the model fit looks good.
 #' 
 #' Plot posterior draws and posterior mean of the mean function
-tibble(ind=1:133, f=draws_gpcovfg$f) %>%
-  group_by(ind) %>%
-  summarise(as_draws_df(draws_rvars(mu = f))) %>%
-  mutate(time=mcycle$times[ind]) %>%
-  ggplot(aes(x=time, y=mu, group = .draw)) +
+draws_gpcovfg %>%
+  thin_draws(thin=5) %>%
+  spread_rvars(f[i]) %>%
+  unnest_rvars() %>%
+  mutate(time=mcycle$times[i]) %>%
+  ggplot(aes(x=time, y=f, group = .draw)) +
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE) +
   geom_line(data=mcycle, mapping=aes(x=times,y=mean(draws_gpcovfg$f)),
@@ -408,17 +394,18 @@ tibble(ind=1:133, f=draws_gpcovfg$f) %>%
 #' for example, in the edge of the data.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as_draws_df(subset(odraws_gpcovfg,
-                          variable=c('sigma_g','lengthscale_g')))
-drawsdf<-as_draws_df(subset(draws_gpcovfg,
-                            variable=c('sigma_g','lengthscale_g')))
-drawsdf%>%
-  ggplot(aes(x=lengthscale_g,y=sigma_g))+
+odraws_gpcovfg <- as_draws_df(opt_gpcovfg$draws())
+draws_gpcovfg %>%
+  thin_draws(thin=5) %>%
+  as_draws_df() %>%
+  ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
-  geom_point(data=optim,color=set1[1],size=4)+
-  annotate("text",x=median(drawsdf$lengthscale_g),y=max(drawsdf$sigma_g)+0.1,
+  geom_point(data=odraws_gpcovfg,color=set1[1],size=4)+
+  annotate("text",x=median(draws_gpcovfg$lengthscale_f),
+           y=max(draws_gpcovfg$sigma_f)+0.1,
            label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
-  annotate("text",x=optim$lengthscale_g+0.01,y=optim$sigma_g,
+  annotate("text",x=odraws_gpcovfg$lengthscale_f+0.01,
+           y=odraws_gpcovfg$sigma_f,
            label='Optimized',hjust=0,color=set1[1],size=6)
 
 #' Optimization result is far from being representative of the
@@ -507,16 +494,16 @@ subset(odraws_gpbffg, variable=c('intercept','sigma_','lengthscale_'),
        regex=TRUE)
 
 #' Compare the model to the data
-Ef <- mean(odraws_gpbffg$f)
-sigma <- mean(odraws_gpbffg$sigma)
-pred<-data.frame(Ef=Ef,sigma=sigma)
-cbind(mcycle,pred) %>%
+mcycle %>%
+  mutate(Ef=mean(odraws_gpbffg$f),
+         sigma=mean(odraws_gpbffg$sigma)) %>%  
   ggplot(aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
   geom_line(aes(y=Ef), color=set1[1])+
   geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
   geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
 
 #' The optimization overfits, as we are now optimizing the joint
 #' posterior of 2 covariance function parameters and 2 x 40 basis
@@ -529,17 +516,15 @@ fit_gpbffg <- model_gpbffg$sample(data=standata_gpbffg,
                                   chains=4, parallel_chains=4, adapt_delta=0.9)
 
 #' Check whether parameters have reasonable values
-draws_gpbffg <- fit_gpbffg$draws()
+draws_gpbffg <- as_draws_rvars(fit_gpbffg$draws())
 summarise_draws(subset(draws_gpbffg,
                        variable=c('intercept','sigma_','lengthscale_'),
                        regex=TRUE))
 
 #' Compare the model to the data
-draws_gpbffg_r <- as_draws_rvars(draws_gpbffg)
-Ef <- mean(draws_gpbffg_r$f)
-sigma <- mean(draws_gpbffg_r$sigma)
-pred<-data.frame(Ef=Ef,sigma=sigma)
-cbind(mcycle,pred) %>%
+mcycle %>%
+  mutate(Ef=mean(draws_gpbffg$f),
+         sigma=mean(draws_gpbffg$sigma)) %>%  
   ggplot(aes(x=times,y=accel))+
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
@@ -550,18 +535,15 @@ cbind(mcycle,pred) %>%
 #' The MCMC integration works well and the model fit looks good.
 #' 
 #' Plot posterior draws and posterior mean of the mean function
-subset(draws_gpbffg, variable="f") %>%
-  thin_draws(thin=5)%>%
-  as_draws_df() %>%
-  pivot_longer(!starts_with("."),
-               names_to="ind",
-               names_transform = list(ind = readr::parse_number),
-               values_to="mu") %>%
-  mutate(time=mcycle$times[ind])%>%
-  ggplot(aes(time, mu, group = .draw)) +
+draws_gpbffg %>%
+  thin_draws(thin=5) %>%
+  spread_rvars(f[i]) %>%
+  unnest_rvars() %>%
+  mutate(time=mcycle$times[i]) %>%
+  ggplot(aes(x=time, y=f, group = .draw)) +
   geom_line(color=set1[2], alpha = 0.1) +
   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
-  geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef),
+  geom_line(data=mcycle, mapping=aes(x=times,y=mean(draws_gpbffg$f)),
             inherit.aes=FALSE, color=set1[1], size=1)+
   labs(x="Time (ms)", y="Acceleration (g)")
 
@@ -571,90 +553,86 @@ subset(draws_gpbffg, variable="f") %>%
 #' for example, in the edge of the data.
 #' 
 #' Compare the posterior draws to the optimized parameters
-optim<-as.data.frame(as_draws_matrix(subset(odraws_gpbffg,
-                          variable=c('sigma_g','lengthscale_g'))))
-drawsdf<-as_draws_df(subset(draws_gpbffg,
-                            variable=c('sigma_g','lengthscale_g')))
-drawsdf%>%
-  ggplot(aes(x=lengthscale_g,y=sigma_g))+
+odraws_gpbffg <- as_draws_df(opt_gpbffg$draws())
+draws_gpbffg %>%
+  thin_draws(thin=5) %>%
+  as_draws_df() %>%
+  ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
-  geom_point(data=optim,color=set1[1],size=4)+
-  annotate("text",x=median(drawsdf$lengthscale_g),y=max(drawsdf$sigma_g)+0.1,
+  geom_point(data=odraws_gpbffg,color=set1[1],size=4)+
+  annotate("text",x=median(draws_gpbffg$lengthscale_f),
+           y=max(draws_gpbffg$sigma_f)+0.1,
            label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
-  annotate("text",x=optim$lengthscale_g+0.01,y=optim$sigma_g,
+  annotate("text",x=odraws_gpbffg$lengthscale_f+0.01,
+           y=odraws_gpbffg$sigma_f,
            label='Optimized',hjust=0,color=set1[1],size=6)
 
 #' Optimization result is far from being representative of the
 #' posterior.
 #' 
 
-## #' ## GP model with Hilbert basis functions and Matern covariance
-## #' 
-## #' Exponentiated quadratic is sometimes considered to be too smooth as
-## #' all the derivatives are continuos. For comparison we use Matern
-## #' covariance. The Hilbert space basis functions are the same and only
-## #' the spectral density values change (that is different basis
-## #' functions have a different weighting).
-## #' 
-## #' Model code
-## file_gpbffg2 <- "gpbffg_matern.stan"
-## writeLines(readLines(file_gpbffg2))
+#' ## GP model with Hilbert basis functions and Matern covariance
+#' 
+#' Exponentiated quadratic is sometimes considered to be too smooth as
+#' all the derivatives are continuos. For comparison we use Matern
+#' covariance. The Hilbert space basis functions are the same and only
+#' the spectral density values change (that is different basis
+#' functions have a different weighting).
+#' 
+#' Model code
+file_gpbffg2 <- "gpbffg_matern.stan"
+writeLines(readLines(file_gpbffg2))
 
-## #' Compile Stan model
-## model_gpbffg2 <- cmdstan_model(stan_file = file_gpbffg2, include_paths = ".")
+#' Compile Stan model
+model_gpbffg2 <- cmdstan_model(stan_file = file_gpbffg2, include_paths = ".")
 
-## #' Data to be passed to Stan
-## standata_gpbffg2 <- list(x=mcycle$times,
-##                         y=mcycle$accel,
-##                         N=length(mcycle$times),
-##                         c_f=1.5, # factor c of basis functions for GP for f1
-##                         M_f=40,  # number of basis functions for GP for f1
-##                         c_g=1.5, # factor c of basis functions for GP for g3
-##                         M_g=40)  # number of basis functions for GP for g3
+#' Data to be passed to Stan
+standata_gpbffg2 <- list(x=mcycle$times,
+                        y=mcycle$accel,
+                        N=length(mcycle$times),
+                        c_f=1.5, # factor c of basis functions for GP for f1
+                        M_f=40,  # number of basis functions for GP for f1
+                        c_g=1.5, # factor c of basis functions for GP for g3
+                        M_g=40)  # number of basis functions for GP for g3
 
-## #' Sample using dynamic HMC
-## #+ fit_gpbffg2, results='hide'
-## fit_gpbffg2 <- model_gpbffg2$sample(data=standata_gpbffg2,
-##                                   iter_warmup=500, iter_sampling=500,
-##                                   chains=4, parallel_chains=4, adapt_delta=0.9)
+#' Sample using dynamic HMC
+#+ fit_gpbffg2, results='hide'
+fit_gpbffg2 <- model_gpbffg2$sample(data=standata_gpbffg2,
+                                  iter_warmup=500, iter_sampling=500,
+                                  chains=4, parallel_chains=4, adapt_delta=0.9)
 
-## #' Check whether parameters have reasonable values
-## draws_gpbffg2 <- fit_gpbffg2$draws()
-## summarise_draws(subset(draws_gpbffg2,
-##                        variable=c('intercept','sigma_','lengthscale_'),
-##                        regex=TRUE))
+#' Check whether parameters have reasonable values
+draws_gpbffg2 <- as_draws_rvars(fit_gpbffg2$draws())
+summarise_draws(subset(draws_gpbffg2,
+                       variable=c('intercept','sigma_','lengthscale_'),
+                       regex=TRUE))
 
-## #' Compare the model to the data
-## draws_gpbffg2_r <- as_draws_rvars(draws_gpbffg2)
-## Ef <- mean(draws_gpbffg2_r$f)
-## sigma <- mean(draws_gpbffg2_r$sigma)
-## pred<-data.frame(Ef=Ef,sigma=sigma)
-## cbind(mcycle,pred) %>%
-##   ggplot(aes(x=times,y=accel))+
-##   geom_point()+
-##   labs(x="Time (ms)", y="Acceleration (g)")+
-##   geom_line(aes(y=Ef), color=set1[1])+
-##   geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
-##   geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(draws_gpbffg2$f),
+         sigma=mean(draws_gpbffg2$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
 
-## #' The MCMC integration works well and the model fit looks good.
-## #' 
-## #' Plot posterior draws and posterior mean of the mean function
-## subset(draws_gpbffg2, variable="f") %>%
-##   thin_draws(thin=5)%>%
-##   as_draws_df() %>%
-##   pivot_longer(!starts_with("."),
-##                names_to="ind",
-##                names_transform = list(ind = readr::parse_number),
-##                values_to="mu") %>%
-##   mutate(time=mcycle$times[ind])%>%
-##   ggplot(aes(time, mu, group = .draw)) +
-##   geom_line(color=set1[2], alpha = 0.1) +
-##   geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
-##   geom_line(data=cbind(mcycle,pred), mapping=aes(x=times,y=Ef),
-##             inherit.aes=FALSE, color=set1[1], size=1)+
-##   labs(x="Time (ms)", y="Acceleration (g)")
+#' The MCMC integration works well and the model fit looks good.
+#' 
+#' Plot posterior draws and posterior mean of the mean function
+draws_gpbffg2 %>%
+  thin_draws(thin=5) %>%
+  spread_rvars(f[i]) %>%
+  unnest_rvars() %>%
+  mutate(time=mcycle$times[i]) %>%
+  ggplot(aes(x=time, y=f, group = .draw)) +
+  geom_line(color=set1[2], alpha = 0.1) +
+  geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
+  geom_line(data=mcycle, mapping=aes(x=times,y=mean(draws_gpbffg2$f)),
+            inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
 
-## #' We see that when using Matern covariance instead of the
-## #' exponentiated quadratic, the model fit is more wigggly.
-## #' 
+#' We see that when using Matern covariance instead of the
+#' exponentiated quadratic, the model fit is more wigggly.
+#' 
