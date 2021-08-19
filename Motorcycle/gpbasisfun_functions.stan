@@ -1,10 +1,12 @@
-vector diagSPD_exp_quad(real alpha, real rho, real L, int M) {
+vector diagSPD_EQ(real alpha, real rho, real L, int M) {
   return sqrt((alpha^2) * sqrt(2*pi()) * rho * exp(-0.5*(rho*pi()/2/L)^2 * linspaced_vector(M, 1, M)^2));
 }
-vector diagSPD_matern(real alpha, real rho, real L, int M) {
-  real a = sqrt(3)/rho;
-  return sqrt(4*alpha^2 * a^3 ./ (a^2 + linspaced_vector(M, 1, M)^2)^2);
-}
+vector diagSPD_Matern(real alpha, real rho, real L, int M) {
+//   vector[M] w = ;
+//   return inv((sqrt(3)/rho)^2 + w);
+   return sqrt(4*alpha^2 * (sqrt(3)/rho)^3 * inv((sqrt(3)/rho)^2 + ((pi()/2/L) * linspaced_vector(M, 1, M))^2)^2);
+//   return sqrt((alpha^2) * sqrt(2*pi()) * rho * exp(-0.5*(rho*pi()/2/L)^2 * linspaced_vector(M, 1, M)^2));
+  }
 vector diagSPD_periodic(real alpha, real rho, int M) {
   real a = 1/rho^2;
   int one_to_M[M];
@@ -13,9 +15,15 @@ vector diagSPD_periodic(real alpha, real rho, int M) {
   return append_row(q,q);
 }
 matrix PHI(int N, int M, real L, vector x) {
-  return sin(diag_post_multiply(rep_matrix(pi()/(2*L) * (x+L), M), linspaced_vector(M, 1, M)))/sqrt(L);
+  matrix[N,M] PHIp = sin(diag_post_multiply(rep_matrix(pi()/(2*L) * (x+L), M), linspaced_vector(M, 1, M)))/sqrt(L);
+  for (m in 1:M)
+    PHIp[,m] = PHIp[,m] - mean(PHIp[,m]);
+  return PHIp;
 }
 matrix PHI_periodic(int N, int M, real w0, vector x) {
   matrix[N,M] mw0x = diag_post_multiply(rep_matrix(w0*x, M), linspaced_vector(M, 1, M));
-  return append_col(cos(mw0x), sin(mw0x));
+  matrix[N,M] PHIp = append_col(cos(mw0x), sin(mw0x));
+  for (m in 1:M)
+    PHIp[,m] = PHIp[,m] - mean(PHIp[,m]);
+  return PHIp;
 }
