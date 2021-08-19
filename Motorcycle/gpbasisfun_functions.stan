@@ -2,10 +2,7 @@ vector diagSPD_EQ(real alpha, real rho, real L, int M) {
   return sqrt((alpha^2) * sqrt(2*pi()) * rho * exp(-0.5*(rho*pi()/2/L)^2 * linspaced_vector(M, 1, M)^2));
 }
 vector diagSPD_Matern(real alpha, real rho, real L, int M) {
-//   vector[M] w = ;
-//   return inv((sqrt(3)/rho)^2 + w);
    return sqrt(4*alpha^2 * (sqrt(3)/rho)^3 * inv((sqrt(3)/rho)^2 + ((pi()/2/L) * linspaced_vector(M, 1, M))^2)^2);
-//   return sqrt((alpha^2) * sqrt(2*pi()) * rho * exp(-0.5*(rho*pi()/2/L)^2 * linspaced_vector(M, 1, M)^2));
   }
 vector diagSPD_periodic(real alpha, real rho, int M) {
   real a = 1/rho^2;
