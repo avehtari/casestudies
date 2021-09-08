@@ -87,9 +87,10 @@ fit_lin <- mod_lin$sample(data = data_lin_priors, seed = SEED)
 fit_lin$cmdstan_diagnose()
 print(fit_lin$summary(), width=Inf)
 
-#' At this point it's sufficient that diagnostics are ok and effective
-#' sample sizes to be large enough that we can assume the diagnostics
-#' to be reliable.
+#' At this point it's sufficient that diagnostics are ok
+#' (cmdstan_diagnose says "no problems detected") and effective sample
+#' sizes are large enough (>400) that we can assume the diagnostics to
+#' be reliable.
 #'
 #' Normally we would also do posterior predictive checking and residual
 #' plots, but now we focus on checking how many MCMC iterations are
