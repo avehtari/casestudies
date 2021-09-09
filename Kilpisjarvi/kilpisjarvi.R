@@ -33,6 +33,7 @@ library(dplyr)
 library(cmdstanr)
 library(posterior)
 options(pillar.negative = FALSE)
+library(lemon)
 library(ggplot2)
 library(bayesplot)
 theme_set(bayesplot::theme_default(base_family = "sans"))
@@ -83,13 +84,19 @@ mod_lin <- cmdstan_model(stan_file = code_lin)
 fit_lin <- mod_lin$sample(data = data_lin_priors, seed = SEED)
 
 #' ### Convergence diagnostics
-#' There are no MCMC convergence diagnostics. We can also check diagnostics.
+#' There were no convergence issues reported by sampling. We can also
+#' explicitly call CmsStan inference diagnostics:
 fit_lin$cmdstan_diagnose()
-print(fit_lin$summary(), width=Inf)
 
-#' At this point it's sufficient that diagnostics are ok and effective
-#' sample sizes to be large enough that we can assume the diagnostics
-#' to be reliable.
+#' And we can also look at the values of Rhats end ESS's:
+#+ render=lemon_print, digits=c(0,2,2,2,2,2,2,2
+draws <- as_draws_rvars(fit_lin$draws())
+summarize_draws(draws)
+
+#' At this point it's sufficient that diagnostics are ok
+#' (cmdstan_diagnose says "no problems detected") and effective sample
+#' sizes are large enough (>400) that we can assume the diagnostics to
+#' be reliable.
 #'
 #' Normally we would also do posterior predictive checking and residual
 #' plots, but now we focus on checking how many MCMC iterations are
@@ -103,7 +110,7 @@ print(fit_lin$summary(), width=Inf)
 #' that the slope is positive.
 
 #' We start looking at the mean and 90% interval for the slope parameter beta
-draws <- as_draws_rvars(fit_lin$draws())
+#+ render=lemon_print, digits=3
 draws %>%
   subset_draws("beta") %>%
   summarize_draws(mean, ~quantile(.x, probs = c(0.05, 0.95))) 
@@ -112,12 +119,14 @@ draws %>%
 #' to improve readability we switch looking at the temperature
 #' increase per 100 years. At the same time we also add an indicator
 #' variable for positivity of beta.
+#+ render=lemon_print, digits=3
 draws <- draws %>%
   mutate_variables(beta100 = 100*beta,
                    betapos = beta>0)
 
 #' Let's look at the mean and 90% interval for expected temperature
 #' increase per 100 years.
+#+ render=lemon_print, digits=3
 draws %>%
   subset_draws("beta100") %>%
   summarize_draws(mean, ~quantile(.x, probs = c(0.05, 0.95)))
@@ -135,7 +144,8 @@ draws %>%
 #' the desired reporting accuracy. We can estimate the Monte Carlo standard
 #' error that takes into account the quantity of interest, and the
 #' effective sample size of MCMC draws.
-#' 
+#'
+#+ render=lemon_print, digits=3
 draws %>%
   subset_draws("beta100") %>%
   summarize_draws(mcse_mean, ~mcse_quantile(.x, probs = c(0.05, 0.95)))
@@ -154,6 +164,7 @@ draws %>%
 #'
 #' We can also report the probability that the temperature change is
 #' positive.
+#+ render=lemon_print, digits=3
 draws %>%
   subset_draws("betapos") %>%
   summarize_draws("mean", mcse = mcse_mean)
