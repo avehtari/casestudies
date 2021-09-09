@@ -89,7 +89,7 @@ fit_lin <- mod_lin$sample(data = data_lin_priors, seed = SEED)
 fit_lin$cmdstan_diagnose()
 
 #' And we can also look at the values of Rhats end ESS's:
-#+ render=lemon_print, digits=c(0,2,2,2,2,2,2,2
+#+ render=lemon_print, digits=c(0,2,2,2,2,2,2,2,0,0)
 draws <- as_draws_rvars(fit_lin$draws())
 summarize_draws(draws)
 
