@@ -210,7 +210,7 @@ draws %>%
 
 #' For the mean MCSE is about 0.01 and for 5% and 95% quantiles about
 #' 0.03. If we multiply these by 2, the likely range of variation due
-#' to Monte Carlo is $\pm$0.02 for mean and $\pm$0.07 for 5% and 95%
+#' to Monte Carlo is $\pm\!$ 0.02 for mean and $\pm\!$ 0.07 for 5% and 95%
 #' quantiles. From this we can interpret that it's unlikely there
 #' would be variation in th report estimate for the mean if it is
 #' reported as 2.0. For 5% and 95% quantiles there can be variation in
