@@ -69,7 +69,7 @@ data_lin <-list(N = nrow(data_kilpis),
 #' Plot the data
 ggplot() +
   geom_point(aes(x, y), data = data.frame(data_lin), size = 1) +
-  labs(y = 'Summer temp. @Kilpisjärvi', x= "Year")
+  labs(y = 'Summer temperature\n at Kilpisjärvi', x= "Year")
 
 #' ## Gaussian linear model
 #'
@@ -110,6 +110,23 @@ fit_lin$cmdstan_diagnose()
 #+ render=lemon_print, digits=c(0,2,2,2,2,2,2,2,0,0)
 draws <- as_draws_rvars(fit_lin$draws())
 summarize_draws(draws)
+
+#' Compute posterior draws for the linear fit
+draws$mu <- draws$alpha_c+draws$beta*(data_lin$x-mean(data_lin$x))
+#' Plot the linear fit with 90% posterior interval
+data.frame(x = data_lin$x,
+           y = data_lin$y,
+           Emu = mean(draws$mu),
+           q05 = quantile(draws$mu, 0.05),
+           q95 = quantile(draws$mu, 0.95)) %>% 
+  ggplot() +
+  geom_ribbon(aes(x=x, ymin=q05, ymax=q95), fill='grey90') +
+  geom_line(aes(x=x, y=Emu, )) +
+  geom_point(aes(x, y), size = 1) +
+  labs(y = 'Summer temperature\n at Kilpisjärvi (°C)', x= "Year")+
+  guides(linetype = "none")
+if (savefigs) ggsave(root("Kilpisjarvi","kilpisjarvi_fit.pdf"),
+                     width=6, height=3)
 
 #' At this point it's sufficient that diagnostics are OK
 #' (cmdstan_diagnose says "no problems detected") and effective sample
@@ -239,7 +256,7 @@ draws %>%
 #' The MCSE indicates we have enough MCMC iterations for practically
 #' meaningful reporting of saying that the probability that the
 #' temperature is increasing is larger than 99%. There is not much
-#' practical difference to reporting that the probability is 99.4% and
+#' practical difference to reporting that the probability is 99.3% and
 #' to estimate that third digit accurately would require 64 times more
 #' iterations. For this simple problem, sampling that many iterations
 #' would not be time consuming, but we might also instead consider to
