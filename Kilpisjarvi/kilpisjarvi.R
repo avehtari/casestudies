@@ -125,6 +125,7 @@ data.frame(x = data_lin$x,
   geom_point(aes(x, y), size = 1) +
   labs(y = 'Summer temperature\n at Kilpisjärvi (°C)', x= "Year")+
   guides(linetype = "none")
+#+ eval=FALSE, include=FALSE
 if (savefigs) ggsave(root("Kilpisjarvi","kilpisjarvi_fit.pdf"),
                      width=6, height=3)
 
