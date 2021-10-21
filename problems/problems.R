@@ -383,7 +383,7 @@ fit_pois <- mod_pois$sample(data = data_pois, seed = SEED, refresh = 0)
 #'```
 
 #'
-#' ## Convergence diagnostics
+#' ### Convergence diagnostics
 #' 
 #' There are convergence issues reported by sampling. We can also
 #' explicitly call CmdStan inference diagnostics:
@@ -423,7 +423,7 @@ fit_pois <- mod_pois$sample(data = data_pois, seed = SEED, refresh = 0)
 #'
 
 #'
-#' ## Convergence diagnostics
+#' ### Convergence diagnostics
 #' 
 #' There are convergence issues reported by sampling. We can also
 #' explicitly call CmdStan inference diagnostics:
@@ -481,7 +481,7 @@ mcmc_rank_hist(as_draws_array(draws), pars=c("alpha"))
 
 #' Histograms are not really uniform.
 
-
+#'
 #' ## Variance parameter that is not constrained to be positive
 #'
 #' Demonstration what happens if we forget <lower=0> from a parameter
