@@ -654,7 +654,7 @@ draws_gpbffg %>%
 #' ## GP model with Hilbert basis functions and Matern covariance
 #' 
 #' Exponentiated quadratic is sometimes considered to be too smooth as
-#' all the derivatives are continuos. For comparison we use Matern
+#' all the derivatives are continuos. For comparison we use Matern-3/2
 #' covariance. The Hilbert space basis functions are the same and only
 #' the spectral density values change (that is different basis
 #' functions have a different weighting).
@@ -713,6 +713,6 @@ draws_gpbffg2 %>%
             inherit.aes=FALSE, color=set1[1], size=1)+
   labs(x="Time (ms)", y="Acceleration (g)")
 
-#' We see that when using Matern covariance instead of the
+#' We see that when using Matern-3/2 covariance instead of the
 #' exponentiated quadratic, the model fit is more wigggly.
 #' 

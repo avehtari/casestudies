@@ -38,8 +38,8 @@ parameters {
 }
 model {
   // spectral densities for f and g
-  vector[M_f] diagSPD_f = diagSPD_Matern(sigma_f, lengthscale_f, L_f, M_f);
-  vector[M_g] diagSPD_g = diagSPD_Matern(sigma_g, lengthscale_g, L_g, M_g);
+  vector[M_f] diagSPD_f = diagSPD_Matern32(sigma_f, lengthscale_f, L_f, M_f);
+  vector[M_g] diagSPD_g = diagSPD_Matern32(sigma_g, lengthscale_g, L_g, M_g);
   // priors
   intercept_f ~ normal(0, 1);
   intercept_g ~ normal(0, 1);
@@ -58,8 +58,8 @@ generated quantities {
   vector[N] sigma;
   {
     // spectral densities
-    vector[M_f] diagSPD_f = diagSPD_Matern(sigma_f, lengthscale_f, L_f, M_f);
-    vector[M_g] diagSPD_g = diagSPD_Matern(sigma_g, lengthscale_g, L_g, M_g);
+    vector[M_f] diagSPD_f = diagSPD_Matern32(sigma_f, lengthscale_f, L_f, M_f);
+    vector[M_g] diagSPD_g = diagSPD_Matern32(sigma_g, lengthscale_g, L_g, M_g);
     // function scaled back to the original scale
     f = (intercept_f + PHI_f * (diagSPD_f .* beta_f))*ysd + ymean;
     sigma = exp(intercept_g + PHI_g * (diagSPD_g .* beta_g))*ysd;
