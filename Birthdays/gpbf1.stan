@@ -1,5 +1,5 @@
 functions {
-#include gpbasisfun_functions1.stan
+#include gpbasisfun_functions.stan
 }
 data {
   int<lower=1> N;      // number of observations
@@ -19,7 +19,7 @@ transformed data {
   vector[N] yn = (y - ymean)/ysd;
   // Basis functions for f1
   real L_f1 = c_f1*max(xn);
-  matrix[N,M_f1] PHI_f1 = PHI_EQ(N, M_f1, L_f1, xn);
+  matrix[N,M_f1] PHI_f1 = PHI(N, M_f1, L_f1, xn);
 }
 parameters {
   real intercept;               // 

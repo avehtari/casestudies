@@ -130,7 +130,7 @@ data %>%
 #' overfitting. Although there is one part of the model where the data
 #' is weakly informative and the prior choices seem to matter and
 #' we'll get back to this and consequences later. Overall we build
-#' tens of different models but illustrate here only the main line.
+#' tens of different models, but illustrate here only the main line.
 #' 
 
 #' ## Models for relative number of birthdays
@@ -176,7 +176,7 @@ standata1 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10)  # number of basis functions for GP for f1
+                  M_f1=20)  # number of basis functions for GP for f1
 
 #' As the basis function approximation and priors restrict the
 #' complexity of GP, we can safely use optimization to get a very
@@ -286,44 +286,36 @@ data %>%
   geom_abline() +
   labs(x="Ef from short Markov chain", y="Ef from optimizing")
 
-#' The original notebook continued using the
-#' [gpbasisfun_functions1.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions1.stan)
-#' used above. Much later [Nikolas Siccha examined more carefully the
-#' posterior correlations](https://github.com/nsiccha/birthday) and
-#' noticed strong correlation between intercept and the first basis
+#' After the first version of this notebook, [Nikolas Siccha examined
+#' more carefully the posterior
+#' correlations](https://github.com/nsiccha/birthday) and noticed
+#' strong correlation between intercept and the first basis
 #' function. Stan's dynamic HMC is so efficient that the inference is
-#' succesful anyway. While Nikolas suggested removing the intercept
-#' term, the better solution is to make the basis functions to have
-#' zero means. We should have noticed to do that already for
-#' Riutort-Mayol et al., (2020) paper, but missed that.
+#' succesful anyway. Nikolas suggested removing the intercept
+#' term. The intercept term is not necessarily needed as the data has
+#' been centered. We test a model without the explicit intercept term.
 #'
-#' File
-#' [gpbasisfun_functions.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbasisfun_functions.stan)
-#' has the fixed code which makes the basis functions to have zero
-#' mean.
-#' 
-
+#' Compile Stan model [gpbf1b.stan](https://github.com/avehtari/casestudies/blob/master/Birthdays/gpbf1b.stan)
 #+ model1b, results='hide'
 model1b <- cmdstan_model(stan_file = root("Birthdays", "gpbf1b.stan"),
                         include_paths = root("Birthdays"))
+
+#' We sample using the default initialization.
 #+ fit1b, results='hide'
 fit1b <- model1b$sample(data=standata1, iter_warmup=100, iter_sampling=100,
                       chains=4, parallel_chains=4, seed=3891)
 
-#' With the better posterior geometry, it is unlikely that we get
-#' stuck in a local mode even with the random inits.
+#' The sampling performs better, indicating that the strong posterior
+#' correlation in the first model was causing troubles for the
+#' adaptation in the short warmup leading some chains to stay stuck.
 draws1b <- fit1b$draws()
-summarise_draws(subset(draws1b, variable=c('intercept','sigma_f1','lengthscale_f1','sigma')))
+summarise_draws(subset(draws1b, variable=c('sigma_f1','lengthscale_f1','sigma')))
+#' Examining the trace plots don't show multimodality
+mcmc_trace(draws1b, regex_pars=c('sigma_f1','lengthscale_f1','sigma'))
 
-#' Examining the trace plots shows better behavior.
-mcmc_trace(draws1b, regex_pars=c('intercept','sigma_f1','lengthscale_f1','sigma'))
-
-#' The remaining models use the zero mean basis functions which
-#' produce better posterior geometry.  We'll however keep using the
-#' optimization inits for the remaining samplings to get some
-#' speed-up.
+#' We drop global intercept from the rest of the models, but continue
+#' using (early stopped) optimization to initialize the sampling.
 #' 
-
 #' ### Model 2: Slow trend + yearly seasonal trend
 #' 
 #' The model 2 adds yearly seasonal trend using GP with periodic
@@ -364,7 +356,7 @@ standata2 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10,  # number of basis functions for GP for f1
+                  M_f1=20,  # number of basis functions for GP for f1
                   J_f2=20)  # number of basis functions for periodic f2
 
 #' Optimizing is faster than sampling (although this result can be
@@ -375,7 +367,7 @@ opt2 <- model2$optimize(data=standata2, init=0, algorithm='bfgs')
 
 #' Check whether parameters have reasonable values
 odraws2 <- opt2$draws()
-subset(odraws2, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE)
+subset(odraws2, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 
 #' Compare the model to the data
 Ef <- exp(as.numeric(subset(odraws2, variable='f')))
@@ -409,7 +401,7 @@ pf / (pf1 + pf2)
 #' Sample short chains using the optimization result as initial values
 #' (although the result from short chains can be useful in a quick
 #' workflow, the result should not be used as the final result).
-init2 <- sapply(c('intercept','lengthscale_f1','lengthscale_f2','sigma_f1','sigma_f2','sigma','beta_f1','beta_f2'),
+init2 <- sapply(c('lengthscale_f1','lengthscale_f2','sigma_f1','sigma_f2','sigma','beta_f1','beta_f2'),
                 function(variable) {as.numeric(subset(odraws2, variable=variable))})
 #+ fit2, results='hide'
 fit2 <- model2$sample(data=standata2, iter_warmup=100, iter_sampling=100,
@@ -418,7 +410,7 @@ fit2 <- model2$sample(data=standata2, iter_warmup=100, iter_sampling=100,
 
 #' Check whether parameters have reasonable values
 draws2 <- fit2$draws()
-summarise_draws(subset(draws2, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE))
+summarise_draws(subset(draws2, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
 
 #' Compare the model to the data
 draws2 <- as_draws_matrix(draws2)
@@ -479,7 +471,7 @@ standata3 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10,  # number of basis functions for GP for f1
+                  M_f1=20,  # number of basis functions for GP for f1
                   J_f2=20,  # number of basis functions for periodic f2
                   day_of_week=data$day_of_week)
 
@@ -491,7 +483,7 @@ opt3 <- model3$optimize(data=standata3, init=0, algorithm='bfgs')
 
 #' Check whether parameters have reasonable values
 odraws3 <- opt3$draws()
-subset(odraws3, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE)
+subset(odraws3, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 subset(odraws3, variable=c('beta_f3'))
 
 #' Compare the model to the data
@@ -533,7 +525,7 @@ pf3 <- ggplot(data=data, aes(x=day_of_week, y=births_relative100)) + geom_point(
 #' Sample short chains using the optimization result as initial values
 #' (although the result from short chains can be useful in a quick
 #' workflow, the result should not be used as the final result).
-init3 <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2','sigma_f1','sigma_f2','sigma',
+init3 <- sapply(c('lengthscale_f1','lengthscale_f2','sigma_f1','sigma_f2','sigma',
                   'beta_f1','beta_f2','beta_f3'),
                 function(variable) {as.numeric(subset(odraws3, variable=variable))})
 #+ fit3, results='hide'
@@ -543,7 +535,7 @@ fit3 <- model3$sample(data=standata3, iter_warmup=100, iter_sampling=100,
 
 #' Check whether parameters have reasonable values
 draws3 <- fit3$draws()
-summarise_draws(subset(draws3, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE))
+summarise_draws(subset(draws3, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
 summarise_draws(subset(draws3, variable=c('beta_f3')))
 
 #' Compare the model to the data
@@ -618,7 +610,7 @@ standata4 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10,  # number of basis functions for GP for f1
+                  M_f1=20,  # number of basis functions for GP for f1
                   J_f2=20,  # number of basis functions for periodic f2
                   c_g3=1.5, # factor c of basis functions for GP for g3
                   M_g3=5,   # number of basis functions for GP for g3
@@ -636,7 +628,7 @@ opt4 <- model4$optimize(data=standata4, init=0, algorithm='bfgs', tol_obj=10)
 
 #' Check whether parameters have reasonable values
 odraws4 <- opt4$draws()
-subset(odraws4, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE)
+subset(odraws4, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 subset(odraws4, variable=c('beta_f3'))
 
 #' Compare the model to the data
@@ -687,7 +679,7 @@ pf3b <- data %>%
 #' initial values (although the result from short chains can be useful
 #' in a quick workflow, the result should not be used as the final
 #' result).
-init4 <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2','lengthscale_g3',
+init4 <- sapply(c('lengthscale_f1','lengthscale_f2','lengthscale_g3',
                   'sigma_f1','sigma_f2','sigma_g3','sigma',
                   'beta_f1','beta_f2','beta_f3','beta_g3'),
                 function(variable) {as.numeric(subset(odraws4, variable=variable))})
@@ -698,7 +690,7 @@ fit4 <- model4$sample(data=standata4, iter_warmup=100, iter_sampling=100,
 
 #' Check whether parameters have reasonable values
 draws4 <- fit4$draws()
-summarise_draws(subset(draws4, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE))
+summarise_draws(subset(draws4, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
 summarise_draws(subset(draws4, variable=c('beta_f3')))
 
 #' Compare the model to the data
@@ -788,7 +780,7 @@ standata5 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10,  # number of basis functions for GP for f1
+                  M_f1=20,  # number of basis functions for GP for f1
                   J_f2=20,  # number of basis functions for periodic f2
                   c_g3=1.5, # factor c of basis functions for GP for g3
                   M_g3=5,   # number of basis functions for GP for g3
@@ -805,7 +797,7 @@ opt5 <- model5$optimize(data=standata5, init=0, algorithm='lbfgs',
 
 #' Check whether parameters have reasonable values
 odraws5 <- opt5$draws()
-subset(odraws5, variable=c('intercept0','sigma_','lengthscale_','sigma'), regex=TRUE)
+subset(odraws5, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 subset(odraws5, variable=c('beta_f3'))
 Ef4 <- as.numeric(subset(odraws5, variable='beta_f4'))*sd(log(data$births_relative100))
 Ef4 <- exp(Ef4)*100
@@ -874,7 +866,6 @@ pf2b <-data.frame(x=as.Date("1959-12-31")+1:366, y=Ef4) %>%
 #' \mbox{intercept} \sim \mbox{normal}(0,1)\\
 #' f_1 \sim \mbox{GP}(0,K_1)\\
 #' f_2 \sim \mbox{GP}(0,K_2)\\
-#' g_3 \sim \mbox{GP}(0,K_3)\\
 #' \beta_{\mbox{day of week}} = 0 \quad \mbox{if day of week is Monday}\\
 #' \beta_{\mbox{day of week}} \sim \mbox{normal}(0,1) \quad \mbox{if day of week is not Monday}\\
 #' \beta_{\mbox{day of year}} \sim \mbox{normal}(0,0.1)
@@ -890,7 +881,7 @@ standata6 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10, # number of basis functions for GP for f1
+                  M_f1=20, # number of basis functions for GP for f1
                   J_f2=20, # number of basis functions for periodic f2
                   day_of_week=data$day_of_week,
                   day_of_year=data$day_of_year2) # 1st March = 61 every year
@@ -904,7 +895,7 @@ opt6 <- model6$optimize(data=standata6, init=0, algorithm='lbfgs',
 
 #' Check whether parameters have reasonable values
 odraws6 <- opt6$draws()
-subset(odraws6, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE)
+subset(odraws6, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 subset(odraws6, variable=c('beta_f3'))
 Ef4 <- as.numeric(subset(odraws6, variable='beta_f4'))*sd(log(data$births_relative100))
 Ef4 <- exp(Ef4)*100
@@ -920,7 +911,7 @@ data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4) %>%
 #' initial values (although the result from short chains can be useful
 #' in a quick workflow, the result should not be used as the final
 #' result).
-init6 <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2',
+init6 <- sapply(c('lengthscale_f1','lengthscale_f2',
                   'sigma_f1','sigma_f2','sigma_f4','sigma',
                   'beta_f1','beta_f2','beta_f3','beta_f4'),
                 function(variable) {as.numeric(subset(odraws6, variable=variable))})
@@ -931,7 +922,7 @@ fit6 <- model6$sample(data=standata6, iter_warmup=100, iter_sampling=100,
 
 #' Check whether parameters have reasonable values
 draws6 <- fit6$draws()
-summarise_draws(subset(draws6, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE))
+summarise_draws(subset(draws6, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
 summarise_draws(subset(draws6, variable=c('beta_f3')))
 draws6 <- as_draws_matrix(draws6)
 Ef4 <- apply(subset(draws6, variable='beta_f4'), 2, median)*sd(log(data$births_relative100))
@@ -1039,7 +1030,7 @@ standata7 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10,  # number of basis functions for GP for f1
+                  M_f1=20,  # number of basis functions for GP for f1
                   J_f2=20,  # number of basis functions for periodic f2
                   day_of_week=data$day_of_week,
                   day_of_year=data$day_of_year2, # 1st March = 61 every year
@@ -1070,7 +1061,7 @@ data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4) %>%
 #' initial values (although the result from short chains can be useful
 #' in a quick workflow, the result should not be used as the final
 #' result).
-init7 <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2',
+init7 <- sapply(c('lengthscale_f1','lengthscale_f2',
                   'sigma_f1','sigma_f2','sigma_f4','sigma',
                   'beta_f1','beta_f2','beta_f3','beta_f4','beta_f5'),
                 function(variable) {as.numeric(subset(odraws7, variable=variable))})
@@ -1080,7 +1071,7 @@ fit7 <- model7$sample(data=standata7, iter_warmup=100, iter_sampling=100, chains
 
 #' Check whether parameters have reasonable values
 draws7 <- fit7$draws()
-summarise_draws(subset(draws7, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE))
+summarise_draws(subset(draws7, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
 summarise_draws(subset(draws7, variable=c('beta_f3')))
 
 #' Compare the model to the data
@@ -1173,7 +1164,7 @@ standata8 <- list(x=data$id,
                   y=log(data$births_relative100),
                   N=length(data$id),
                   c_f1=1.5, # factor c of basis functions for GP for f1
-                  M_f1=10,  # number of basis functions for GP for f1
+                  M_f1=20,  # number of basis functions for GP for f1
                   J_f2=20,  # number of basis functions for periodic f2
                   c_g3=1.5, # factor c of basis functions for GP for g3
                   M_g3=5,   # number of basis functions for GP for g3
@@ -1192,7 +1183,7 @@ opt8 <- model8$optimize(data=standata8, init=0.1, algorithm='lbfgs',
 
 #' Check whether parameters have reasonable values
 odraws8 <- opt8$draws()
-subset(odraws8, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE)
+subset(odraws8, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE)
 subset(odraws8, variable=c('beta_f3'))
 Ef4 <- as.numeric(subset(odraws8, variable='beta_f4'))*sd(log(data$births_relative100))
 Ef4 <- exp(Ef4)*100
@@ -1275,7 +1266,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #' initial values (although the result from short chains can be useful
 #' in a quick workflow, the result should not be used as the final
 #' result).
-init8 <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2','lengthscale_g3',
+init8 <- sapply(c('lengthscale_f1','lengthscale_f2','lengthscale_g3',
                   'sigma_f1','sigma_f2','sigma_g3','sigma_f4','sigma',
                   'beta_f1','beta_f2','beta_f3','beta_g3','beta_f4','beta_f5'),
                 function(variable) {as.numeric(subset(odraws8, variable=variable))})
@@ -1285,7 +1276,7 @@ fit8 <- model8$sample(data=standata8, iter_warmup=100, iter_sampling=100, chains
 
 #' Check whether parameters have reasonable values
 draws8 <- fit8$draws()
-summarise_draws(subset(draws8, variable=c('intercept','sigma_','lengthscale_','sigma'), regex=TRUE))
+summarise_draws(subset(draws8, variable=c('sigma_','lengthscale_','sigma'), regex=TRUE))
 summarise_draws(subset(draws8, variable=c('beta_f3')))
 
 #' Compare the model to the data
@@ -1385,7 +1376,7 @@ odraws8tnu <- opt8tnu$draws()
 #' initial values (although the result from short chains can be useful
 #' in a quick workflow, the result should not be used as the final
 #' result).
-init8tnu <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2','lengthscale_g3',
+init8tnu <- sapply(c('lengthscale_f1','lengthscale_f2','lengthscale_g3',
                   'sigma_f1','sigma_f2','sigma_g3','sigma_f4','nu_f4','sigma',
                   'beta_f1','beta_f2','beta_f3','beta_g3','beta_f4','beta_f5'),
                 function(variable) {as.numeric(subset(odraws8tnu, variable=variable))})
@@ -1536,7 +1527,7 @@ odraws8rhs <- opt8rhs$draws()
 #' Sample short chains using the optimization result as initial values
 #' (although the result from short chains can be useful in a quick
 #' workflow, the result should not be used as the final result).
-init8rhs <- sapply(c('intercept0','lengthscale_f1','lengthscale_f2','lengthscale_g3',
+init8rhs <- sapply(c('lengthscale_f1','lengthscale_f2','lengthscale_g3',
                   'sigma_f1','sigma_f2','sigma_g3','sigma_f4','sigma',
                   'beta_f1','beta_f2','beta_f3','beta_g3','beta_f4','beta_f5',
                   'tau_f4','lambda_f4','caux_f4'),
@@ -1547,7 +1538,7 @@ fit8rhs <- model8rhs$sample(data=standata8, iter_warmup=100, iter_sampling=100, 
 
 #' Check whether parameters have reasonable values
 draws8rhs <- fit8rhs$draws()
-summarise_draws(subset(draws8rhs, variable=c('intercept','sigma_','lengthscale_','sigma','nu_'), regex=TRUE))
+summarise_draws(subset(draws8rhs, variable=c('sigma_','lengthscale_','sigma','nu_'), regex=TRUE))
 
 #' Compare the model to the data
 draws8 <- as_draws_matrix(draws8rhs)

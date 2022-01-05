@@ -20,7 +20,7 @@ transformed data {
   vector[N] yn = (y - ymean)/ysd;
   // Basis functions for f1
   real L_f1 = c_f1*max(xn);
-  matrix[N,M_f1] PHI_f1 = PHI_EQ(N, M_f1, L_f1, xn);
+  matrix[N,M_f1] PHI_f1 = PHI(N, M_f1, L_f1, xn);
   // Basis functions for f2
   real period_year = 365.25/xsd;
   matrix[N,2*J_f2] PHI_f2 = PHI_periodic(N, J_f2, 2*pi()/period_year, xn);
@@ -28,7 +28,6 @@ transformed data {
   matrix[N,M_f1+2*J_f2] PHI_f = append_col(PHI_f1, PHI_f2);
 }
 parameters {
-  real intercept;
   vector[M_f1] beta_f1;         // the basis functions coefficients for f1
   vector[2*J_f2] beta_f2;       // the basis functions coefficients for f2
   real<lower=0> lengthscale_f1; //
@@ -42,7 +41,6 @@ model {
   vector[M_f1] diagSPD_f1 = diagSPD_EQ(sigma_f1, lengthscale_f1, L_f1, M_f1);
   vector[2*J_f2] diagSPD_f2 = diagSPD_periodic(sigma_f2, lengthscale_f2, J_f2);
   // priors
-  intercept ~ normal(0, 1);
   beta_f1 ~ normal(0, 1);
   beta_f2 ~ normal(0, 1);
   lengthscale_f1 ~ lognormal(log(700/xsd), 1);
@@ -52,7 +50,7 @@ model {
   sigma ~ normal(0, .5);
   // model
   yn ~ normal_id_glm(PHI_f,
-		     intercept,
+		     0.0,
 		     append_row(diagSPD_f1 .* beta_f1, diagSPD_f2 .* beta_f2),
 		     sigma); 
 }
@@ -66,7 +64,7 @@ generated quantities {
     vector[M_f1] diagSPD_f1 = diagSPD_EQ(sigma_f1, lengthscale_f1, L_f1, M_f1);
     vector[2*J_f2] diagSPD_f2 = diagSPD_periodic(sigma_f2, lengthscale_f2, J_f2);
     // functions scaled back to original scale
-    f1 = (intercept + PHI_f1 * (diagSPD_f1 .* beta_f1))*ysd;
+    f1 = (0.0 + PHI_f1 * (diagSPD_f1 .* beta_f1))*ysd;
     f2 = (PHI_f2 * (diagSPD_f2 .* beta_f2))*ysd;
     f = f1 + f2 + ymean;
     // log_liks for loo

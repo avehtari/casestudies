@@ -25,7 +25,7 @@ transformed data {
   vector[N] yn = (y - ymean)/ysd;
   // Basis functions for f1
   real L_f1 = c_f1*max(xn);
-  matrix[N,M_f1] PHI_f1 = PHI_EQ(N, M_f1, L_f1, xn);
+  matrix[N,M_f1] PHI_f1 = PHI(N, M_f1, L_f1, xn);
   // Basis functions for f2
   real period_year = 365.25/xsd;
   matrix[N,2*J_f2] PHI_f2 = PHI_periodic(N, J_f2, 2*pi()/period_year, xn);
@@ -33,7 +33,6 @@ transformed data {
   matrix[N,M_f1+2*J_f2] PHI_f = append_col(PHI_f1, PHI_f2);
 }
 parameters {
-  real intercept0;
   vector[M_f1] beta_f1;         // the basis functions coefficients for f1
   vector[2*J_f2] beta_f2;       // the basis functions coefficients for f2
   vector[6] beta_f3;            // day of week effect
@@ -57,9 +56,8 @@ model {
   intercept[memorial_days] = rep_vector(beta_f5[1], size(memorial_days));
   intercept[labor_days] = rep_vector(beta_f5[2], size(labor_days));
   intercept[thanksgiving_days] = rep_vector(beta_f5[3], size(thanksgiving_days));
-  intercept += intercept0;
+  intercept += 0.0;
   // priors
-  intercept0 ~ normal(0, 1);
   beta_f1 ~ normal(0, 1);
   beta_f2 ~ normal(0, 1);
   beta_f3 ~ normal(0, 1);
@@ -94,12 +92,12 @@ generated quantities {
     intercept[memorial_days] = rep_vector(beta_f5[1], size(memorial_days));
     intercept[labor_days] = rep_vector(beta_f5[2], size(labor_days));
     intercept[thanksgiving_days] = rep_vector(beta_f5[3], size(thanksgiving_days));
-    intercept += intercept0;
+    intercept += 0.0;
     // functions scaled back to original scale
     f_day_of_week = f_day_of_week_n*ysd;
-    f1 = (intercept0 + PHI_f1 * (diagSPD_f1 .* beta_f1))*ysd;
+    f1 = (0.0 + PHI_f1 * (diagSPD_f1 .* beta_f1))*ysd;
     f2 = (PHI_f2 * (diagSPD_f2 .* beta_f2))*ysd;
-    f = f1 + f2 + (intercept-intercept0)*ysd + ymean;
+    f = f1 + f2 + (intercept-0.0)*ysd + ymean;
     // log_liks for loo
     for (n in 1:N) log_lik[n] = normal_lpdf(y[n] | f[n], sigma*ysd);
   }
