@@ -241,7 +241,7 @@ pp2
 
 #' We see the typical feature of posterior SBC, that is, the
 #' conditional posteriors are only slightly more narrow than the
-#' original posterior distribution (factor of $\sqrt{2}). We
+#' original posterior distribution (factor of $\sqrt{2}$). We
 #' illustrate later how this affects how the posterior and conditional
 #' posterior draws should be compared.
 #'
