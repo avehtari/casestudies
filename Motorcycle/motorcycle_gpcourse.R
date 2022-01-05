@@ -439,7 +439,7 @@ modelbf0 <- cmdstan_model(stan_file = filebf0, include_paths = ".")
 standatabf0 <- list(x=seq(0,1,length.out=100),
                     N=100,
                     c_f=1.5, # factor c of basis functions for GP for f1
-                    M_f=40,  # number of basis functions for GP for f1
+                    M_f=160,  # number of basis functions for GP for f1
                     sigma_f=1,
                     lengthscale_f=1) 
 #' Generate basis functions
@@ -449,7 +449,7 @@ fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
 q<-subset(fixbf0$draws(), variable="PHI_f") %>%
   as_draws_matrix() %>%
   as.numeric()%>%
-  matrix(nrow=100,ncol=40)%>%
+  matrix(nrow=100,ncol=160)%>%
   as.data.frame()
 id <- rownames(q)
 q <- cbind(x=as.numeric(id), q)
@@ -474,23 +474,31 @@ q %>%
   theme(legend.position="none")
 ggsave('gp_basis_functions.pdf',width=4,height=3)
 
-#' The first 8 spectral densities with sigma_f=1 and
-#' lengthscale_f=1. These spectral densities give a prior weight for
-#' each basis function. Bigger weights on the smoother basis functions
-#' thus imply a prior on function space favoring smoother functions.
-spd <- as.matrix(fixbf0$draws(variable='diagSPD_f'))
-round(spd[1:8],2)
+#' The first 8 spectral densities for exponentiated quadratic
+#' covariance function with sigma_f=1 and lengthscale_f=1. These
+#' spectral densities give a prior weight for each basis
+#' function. Bigger weights on the smoother basis functions thus imply
+#' a prior on function space favoring smoother functions.
+spd_EQ <- as.matrix(fixbf0$draws(variable='diagSPD_EQ_f'))
+round(spd_EQ[1:8],2)
 
-#' Plot 4 random draws from the prior on function space with sigma_f=1
-#' and lengthscale_f=1. The basis function approximation is just a
-#' linear model, with the basis functions weighted by the spectral
-#' densities depending on the sigma_f and lengthscale_f, and the prior
-#' for the linear model coefficients is simply independent
-#' normal(0,1).
+#' The first 8 spectral densities for Matern-3/2 covariance function
+#' with sigma_f=1 and lengthscale_f=1. The spectral density values go
+#' down much slower than for the exponentiated quadratic covariance
+#' function, which is natural as Matern-3/2 is less smooth.
+spd_Matern32 <- as.matrix(fixbf0$draws(variable='diagSPD_Matern32_f'))
+round(spd_Matern32[1:8],2)
+
+#' Plot 4 random draws from the prior on function space with
+#' exponentiated quadratic covariance function and sigma_f=1 and
+#' lengthscale_f=1. The basis function approximation is just a linear
+#' model, with the basis functions weighted by the spectral densities
+#' depending on the sigma_f and lengthscale_f, and the prior for the
+#' linear model coefficients is simply independent normal(0,1).
 set.seed(365)
 qr <- bind_rows(lapply(1:4, function(i) {
   q %>%
-    mutate(r=rep(rnorm(40),times=100),fr=f*r*spd[ind]) %>%
+    mutate(r=rep(rnorm(160),times=100),fr=f*r*spd_EQ[ind]) %>%
     group_by(x) %>%
     summarise(f=sum(fr)) %>%
     mutate(ind=i) }))
@@ -504,11 +512,34 @@ qr %>%
   theme(legend.position="none")
 ggsave('gp_prior_draws_l1.pdf',width=4,height=3)
 
+#' Plot 4 random draws from the prior on function space with
+#' Matern-3/2 covariance function and sigma_f=1 and
+#' lengthscale_f=1. The same random number generator seed was used so
+#' that you can compare this plot to the above one. Matern-3/2 had
+#' more prior mass on higher frequencies and the prior draws are more
+#' wiggly.
+set.seed(365)
+qr <- bind_rows(lapply(1:4, function(i) {
+  q %>%
+    mutate(r=rep(rnorm(160),times=100),fr=f*r*spd_Matern32[ind]) %>%
+    group_by(x) %>%
+    summarise(f=sum(fr)) %>%
+    mutate(ind=i) }))
+qr %>%
+  ggplot(aes(x=x, y=f, group=ind, color=factor(ind))) +
+  geom_line()+
+  geom_text_repel(data=filter(qr, x==0.01),aes(x=-0.01,y=f,label=ind),
+                  direction="y")+
+  geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
+                  direction="y")+
+  theme(legend.position="none")
+ggsave('gp_prior_draws_m_l1.pdf',width=4,height=3)
+
 #' Let's do the same with lengthscale_f=0.3
 standatabf0 <- list(x=seq(0,1,length.out=100),
                     N=100,
                     c_f=1.5, # factor c of basis functions for GP for f1
-                    M_f=40,  # number of basis functions for GP for f1
+                    M_f=160,  # number of basis functions for GP for f1
                     sigma_f=1,
                     lengthscale_f=0.3) 
 fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
@@ -516,22 +547,24 @@ fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
 #' The basis functions are exactly the same, and only the spectral
 #' densities have changed. Now the weight doesn't drop as fast for
 #' the more wiggly basis functions.
-spd <- as.matrix(fixbf0$draws(variable='diagSPD_f'))
-round(spd[1:8],2)
+spd_EQ <- as.matrix(fixbf0$draws(variable='diagSPD_EQ_f'))
+round(spd_EQ[1:15],2)
+spd_Matern32 <- as.matrix(fixbf0$draws(variable='diagSPD_Matern32_f'))
+round(spd_Matern32[1:15],2)
 
-#' Plot 4 random draws from the prior on function space with sigma_f=1
-#' and lengthscale_f=0.3. The random functions from the prior are now
-#' more wiggly. The same random number generator seed was used so that
-#' you can compare this plot to the above one. Above the prior draw
-#' number 2 looks like a decreasing slope. Here the prior draw number
-#' 2 still has downward trend, but is more wiggly. The same random
-#' draw from the coefficient space produces a wigglier function as the
-#' spectral densities go down slower for the more wiggly basis
-#' functions.
+#' Plot 4 random draws from the prior on function space with
+#' exponentiated quadratic covariance function and sigma_f=1 and
+#' lengthscale_f=0.3. The random functions from the prior are now more
+#' wiggly. The same random number generator seed was used so that you
+#' can compare this plot to the above one. Above the prior draw number
+#' 2 looks like a decreasing slope. Here the prior draw number 2 still
+#' has downward trend, but is more wiggly. The same random draw from
+#' the coefficient space produces a wigglier function as the spectral
+#' densities go down slower for the more wiggly basis functions.
 set.seed(365)
 qr <- bind_rows(lapply(1:4, function(i) {
   q %>%
-    mutate(r=rep(rnorm(40),times=100),fr=f*r*spd[ind]) %>%
+    mutate(r=rep(rnorm(160),times=100),fr=f*r*spd_EQ[ind]) %>%
     group_by(x) %>%
     summarise(f=sum(fr)) %>%
     mutate(ind=i) }))
@@ -544,6 +577,27 @@ qr %>%
                   direction="y")+
   theme(legend.position="none")
 ggsave('gp_prior_draws_l03.pdf',width=4,height=3)
+
+#' Plot 4 random draws from the prior on function space with
+#' Matern-3/2 covariance function and sigma_f=1 and
+#' lengthscale_f=0.3. The prior draws are more wiggly than with
+#' exponentiated quadratic.
+set.seed(365)
+qr <- bind_rows(lapply(1:4, function(i) {
+  q %>%
+    mutate(r=rep(rnorm(160),times=100),fr=f*r*spd_Matern32[ind]) %>%
+    group_by(x) %>%
+    summarise(f=sum(fr)) %>%
+    mutate(ind=i) }))
+qr %>%
+  ggplot(aes(x=x, y=f, group=ind, color=factor(ind))) +
+  geom_line()+
+  geom_text_repel(data=filter(qr, x==0.01),aes(x=-0.01,y=f,label=ind),
+                  direction="y")+
+  geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
+                  direction="y")+
+  theme(legend.position="none")
+ggsave('gp_prior_draws_m_l03.pdf',width=4,height=3)
 
 #' And now the actual model using GP basis functions for f and g
 #' 
@@ -671,9 +725,9 @@ standata_gpbffg2 <- list(x=mcycle$times,
                         y=mcycle$accel,
                         N=length(mcycle$times),
                         c_f=1.5, # factor c of basis functions for GP for f1
-                        M_f=40,  # number of basis functions for GP for f1
+                        M_f=160,  # number of basis functions for GP for f1
                         c_g=1.5, # factor c of basis functions for GP for g3
-                        M_g=40)  # number of basis functions for GP for g3
+                        M_g=160)  # number of basis functions for GP for g3
 
 #' Sample using dynamic HMC
 #+ fit_gpbffg2, results='hide'
