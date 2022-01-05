@@ -22,5 +22,6 @@ generated quantities {
   // Basis functions for f
   matrix[N,M_f] PHI_f = PHI(N, M_f, L_f, xn);
   // spectral densities
-  vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
+  vector[M_f] diagSPD_EQ_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
+  vector[M_f] diagSPD_Matern32_f = diagSPD_Matern32(sigma_f, lengthscale_f, L_f, M_f);
 }
