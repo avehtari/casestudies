@@ -56,6 +56,7 @@ options(pillar.neg = FALSE, pillar.subtle=FALSE, pillar.sigfig=2)
 library(tidyr) 
 library(dplyr) 
 library(ggplot2)
+library(ggrepel)
 library(bayesplot)
 theme_set(bayesplot::theme_default(base_family = "sans", base_size=16))
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
@@ -419,7 +420,10 @@ draws_gpcovfg %>%
 #' significant when n grows. One way to speed up the computation in
 #' low dimensional covariate case is to use basis function
 #' approximation which changes the GP to a linear model. Here we use
-#' Hilbert space basis functions.
+#' Hilbert space basis functions. With infinite number of basis
+#' functions, the approach is exact, but sufficient accuracy and
+#' significant saving in the computation speed is often achieveved
+#' with a relatively small number of basis functions.
 #' 
 #' Code for illustrating the basis functions
 #' Model code
@@ -456,12 +460,90 @@ q <- q %>%
                values_to="f")%>%
   mutate(x=x/100)
 
-#' Plot 10 first basis functions
+#' Plot the first 6 basis functions. These are just sine and cosine
+#' functions with different frequencies and truncated to a pre-defined
+#' box.
 q %>%
-  filter(ind<=10) %>%
-  ggplot(aes(x=x, y=f, group=ind)) +
-  geom_line() +
-  facet_grid(rows=vars(ind))
+  filter(ind<=6) %>%
+  ggplot(aes(x=x, y=f, group=ind, color=factor(ind))) +
+  geom_line()+
+  geom_text_repel(data=filter(q, ind<=6 & x==0.01),aes(x=-0.01,y=f,label=ind),
+                  direction="y")+
+  geom_text_repel(data=filter(q, ind<=6 & x==1),aes(x=1.02,y=f,label=ind),
+                  direction="y")+
+  theme(legend.position="none")
+ggsave('gp_basis_functions.pdf',width=4,height=3)
+
+#' The first 8 spectral densities with sigma_f=1 and
+#' lengthscale_f=1. These spectral densities give a prior weight for
+#' each basis function. Bigger weights on the smoother basis functions
+#' thus imply a prior on function space favoring smoother functions.
+spd <- as.matrix(fixbf0$draws(variable='diagSPD_f'))
+round(spd[1:8],2)
+
+#' Plot 4 random draws from the prior on function space with sigma_f=1
+#' and lengthscale_f=1. The basis function approximation is just a
+#' linear model, with the basis functions weighted by the spectral
+#' densities depending on the sigma_f and lengthscale_f, and the prior
+#' for the linear model coefficients is simply independent
+#' normal(0,1).
+set.seed(365)
+qr <- bind_rows(lapply(1:4, function(i) {
+  q %>%
+    mutate(r=rep(rnorm(40),times=100),fr=f*r*spd[ind]) %>%
+    group_by(x) %>%
+    summarise(f=sum(fr)) %>%
+    mutate(ind=i) }))
+qr %>%
+  ggplot(aes(x=x, y=f, group=ind, color=factor(ind))) +
+  geom_line()+
+  geom_text_repel(data=filter(qr, x==0.01),aes(x=-0.01,y=f,label=ind),
+                  direction="y")+
+  geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
+                  direction="y")+
+  theme(legend.position="none")
+ggsave('gp_prior_draws_l1.pdf',width=4,height=3)
+
+#' Let's do the same with lengthscale_f=0.3
+standatabf0 <- list(x=seq(0,1,length.out=100),
+                    N=100,
+                    c_f=1.5, # factor c of basis functions for GP for f1
+                    M_f=40,  # number of basis functions for GP for f1
+                    sigma_f=1,
+                    lengthscale_f=0.3) 
+fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
+                          iter=1, iter_sampling=1)
+#' The basis functions are exactly the same, and only the spectral
+#' densities have changed. Now the weight doesn't drop as fast for
+#' the more wiggly basis functions.
+spd <- as.matrix(fixbf0$draws(variable='diagSPD_f'))
+round(spd[1:8],2)
+
+#' Plot 4 random draws from the prior on function space with sigma_f=1
+#' and lengthscale_f=0.3. The random functions from the prior are now
+#' more wiggly. The same random number generator seed was used so that
+#' you can compare this plot to the above one. Above the prior draw
+#' number 2 looks like a decreasing slope. Here the prior draw number
+#' 2 still has downward trend, but is more wiggly. The same random
+#' draw from the coefficient space produces a wigglier function as the
+#' spectral densities go down slower for the more wiggly basis
+#' functions.
+set.seed(365)
+qr <- bind_rows(lapply(1:4, function(i) {
+  q %>%
+    mutate(r=rep(rnorm(40),times=100),fr=f*r*spd[ind]) %>%
+    group_by(x) %>%
+    summarise(f=sum(fr)) %>%
+    mutate(ind=i) }))
+qr %>%
+  ggplot(aes(x=x, y=f, group=ind, color=factor(ind))) +
+  geom_line()+
+  geom_text_repel(data=filter(qr, x==0.01),aes(x=-0.01,y=f,label=ind),
+                  direction="y")+
+  geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
+                  direction="y")+
+  theme(legend.position="none")
+ggsave('gp_prior_draws_l03.pdf',width=4,height=3)
 
 #' And now the actual model using GP basis functions for f and g
 #' 
