@@ -1,0 +1,12 @@
+name: "Aki Vehtari"
+output_dir: "."
+author: "Aki Vehtari"
+output:
+  html_document:
+    bootstrap_version: 4
+    theme: readable
+    font-size-base: 1.5rem
+    toc: true
+    toc_collapse: false
+    toc_depth: 2
+    toc_float: true
