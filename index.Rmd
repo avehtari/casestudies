@@ -2,11 +2,29 @@
 title: "Case studies"
 author: "Aki Vehtari"
 date: "Page updated: `r format.Date(file.mtime('index.Rmd'),'%Y-%m-%d')`"
+output:
+  html_document:
+    bootstrap_version: 4
+    theme: readable
+    font-size-base: 1.5rem
+    toc: true
+    toc_collapse: false
+    toc_depth: 2
+    toc_float: true
 ---
 
 -------------
 
-## Miscalleanous case studies
+## Gaussian processes
 
-- [Motorcycle](Motorcycle/motorcycle.html): Gaussian process demo with heteroscedastic noise model and Hilbert basis function and covariance matrix implementations
+- [Birthdays](Birthdays/birthdays.html): Workflow demo for building time series model from many Gaussian process components
+- [Motorcycle](Motorcycle/motorcycle_gpcourse.html): Gaussian process demo with heteroscedastic noise model and Hilbert basis function and covariance matrix implementations
 
+## MCMC diagnostics and accuracy
+
+- [ESS comparison](https://avehtari.github.io/rhat_ess/ess_comparison.html): Comparison of MCMC effective sample size (and MCSE) estimators
+- [Digits](Digits/digits.html): How many digits to report and how many iterations to run
+
+## Jacobian transformation
+
+- [Jacobian](Jacobian/jacobian.html): Illustration of Jacobian transformation in Stan.
