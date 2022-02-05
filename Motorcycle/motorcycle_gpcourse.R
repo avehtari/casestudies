@@ -1,6 +1,6 @@
 #' ---
 #' title: "Gaussian process demonstration with Stan"
-#' author: "Aki Vehtari"
+#' author: "[Aki Vehtari](https://users.aalto.fi/~ave/)"
 #' date: "First version 2021-01-28. Last modified `r format(Sys.Date())`."
 #' output:
 #'   html_document:
@@ -438,7 +438,7 @@ modelbf0 <- cmdstan_model(stan_file = filebf0, include_paths = ".")
 #' Data to be passed to Stan
 standatabf0 <- list(x=seq(0,1,length.out=100),
                     N=100,
-                    c_f=1.5, # factor c of basis functions for GP for f1
+                    c_f=3, # factor c of basis functions for GP for f1
                     M_f=160,  # number of basis functions for GP for f1
                     sigma_f=1,
                     lengthscale_f=1) 
@@ -472,7 +472,7 @@ q %>%
   geom_text_repel(data=filter(q, ind<=6 & x==1),aes(x=1.02,y=f,label=ind),
                   direction="y")+
   theme(legend.position="none")
-ggsave('gp_basis_functions.pdf',width=4,height=3)
+#ggsave('gp_basis_functions.pdf',width=4,height=3)
 
 #' The first 8 spectral densities for exponentiated quadratic
 #' covariance function with sigma_f=1 and lengthscale_f=1. These
@@ -489,6 +489,7 @@ round(spd_EQ[1:8],2)
 spd_Matern32 <- as.matrix(fixbf0$draws(variable='diagSPD_Matern32_f'))
 round(spd_Matern32[1:8],2)
 
+9
 #' Plot 4 random draws from the prior on function space with
 #' exponentiated quadratic covariance function and sigma_f=1 and
 #' lengthscale_f=1. The basis function approximation is just a linear

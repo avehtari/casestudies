@@ -1,6 +1,6 @@
 ---
 title: "Case studies"
-author: "Aki Vehtari"
+author: "[Aki Vehtari](https://users.aalto.fi/~ave/)"
 date: "Page updated: `r format.Date(file.mtime('index.Rmd'),'%Y-%m-%d')`"
 output:
   html_document:
@@ -14,6 +14,8 @@ output:
 ---
 
 -------------
+
+Miscellaneous case studies by [Aki Vehtari](https://users.aalto.fi/~ave/).
 
 ## Gaussian processes
 

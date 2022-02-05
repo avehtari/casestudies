@@ -1,6 +1,6 @@
 #' ---
 #' title: "Visual illustration of Jacobian of parameter transformation"
-#' author: "Aki Vehtari"
+#' author: "[Aki Vehtari](https://users.aalto.fi/~ave/)"
 #' date: "First version 2021-01-21. Last modified `r format(Sys.Date())`."
 #' output:
 #'   html_document:
