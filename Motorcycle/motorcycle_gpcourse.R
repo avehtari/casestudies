@@ -4,11 +4,15 @@
 #' date: "First version 2021-01-28. Last modified `r format(Sys.Date())`."
 #' output:
 #'   html_document:
+#'     bootstrap_version: 4
 #'     theme: readable
+#'     font-size-base: 1.5rem
 #'     toc: true
 #'     toc_depth: 2
+#'     number_sections: TRUE
 #'     toc_float: true
 #'     code_download: true
+#'     keep_md: true
 #' ---
 
 
@@ -24,7 +28,7 @@
 #' (2020). Practical Hilbert space approximate Bayesian Gaussian
 #' processes for probabilistic programming. https://arxiv.org/abs/2004.11408
 #'
-#' ## Motorcycle
+#' # Motorcycle accident acceleration data
 #' 
 #' Data are measurements of head acceleration in a simulated
 #' motorcycle accident, used to test crash helmets.
@@ -48,7 +52,7 @@
 #+ setup, include=FALSE
 knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE, comment=NA, cache=FALSE)
 
-#' #### Load packages
+#' ### Load packages {.unnumbered}
 library(cmdstanr) 
 library(posterior)
 library(tidybayes)
@@ -62,7 +66,7 @@ theme_set(bayesplot::theme_default(base_family = "sans", base_size=16))
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
 SEED <- 48927 # set random seed for reproducibility
 
-#' ## Motorcycle accident acceleration data
+#' ## Load and plot data
 #' 
 #' Load data
 data(mcycle, package="MASS")
@@ -74,7 +78,7 @@ mcycle %>%
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")
 
-#' ## GP model with homoskedastic residual
+#' # Homoskedastic GP with covariance matrices
 #'
 #' We start with a simpler homoskedastic residual Gaussian process model
 #' $$
@@ -86,11 +90,12 @@ mcycle %>%
 #' and residual scale parameters.
 #' 
 
-#' Model code
+#' ## Model code
 file_gpcovf <- "gpcovf.stan"
 writeLines(readLines(file_gpcovf))
 
 #' Compile Stan model
+#+ results='hide'
 model_gpcovf <- cmdstan_model(stan_file = file_gpcovf)
 
 #' Data to be passed to Stan
@@ -100,7 +105,7 @@ standata_gpcovf <- list(x=mcycle$times,
                         N=length(mcycle$times),
                         N2=length(mcycle$times))
 
-#' Optimize and find MAP estimate
+#' ## Optimize and find MAP estimate
 #+ opt_gpcovf, results='hide'
 opt_gpcovf <- model_gpcovf$optimize(data=standata_gpcovf,
                                     init=0.1, algorithm='bfgs')
@@ -123,7 +128,7 @@ mcycle %>%
 #' The model fit given optimized parameters, looks reasonable
 #' considering the use of homoskedastic residual model.
 #' 
-#' Sample using dynamic HMC
+#' ## Sample using dynamic HMC
 #+ fit_gpcovf, results='hide'
 fit_gpcovf <- model_gpcovf$sample(data=standata_gpcovf,
                                   iter_warmup=500, iter_sampling=500,
@@ -191,7 +196,7 @@ mcycle %>%
 #' posterior is low dimensional and the number of observations is
 #' relatively high.
 #' 
-#' ### 10% of data
+#' ## 10% of data
 #'
 #' To demonstrate that the optimization is not always safe, we use
 #' only 10% of the data for model fitting.
@@ -297,7 +302,7 @@ mcycle %>%
 #' (and in case of good calibration should not cover them all).
 #' 
 
-#' ## GP with covariance matrices
+#' # Heteroskedastic GP with covariance matrices
 #'
 #' We next make a model with heteroskedastic residual model using
 #' Gaussian process prior also for the logarithm of the residual
@@ -316,11 +321,12 @@ mcycle %>%
 #' variational inference, or expectation propagation to integrate over
 #' the latent values, but that is another story.
 #' 
-#' Model code
+#' ## Model code
 file_gpcovfg <- "gpcovfg.stan"
 writeLines(readLines(file_gpcovfg))
 
 #' Compile Stan model
+#+ results='hide'
 model_gpcovfg <- cmdstan_model(stan_file = file_gpcovfg)
 
 #' Data to be passed to Stan
@@ -328,7 +334,7 @@ standata_gpcovfg <- list(x=mcycle$times,
                          y=mcycle$accel,
                          N=length(mcycle$times))
 
-#' Optimize and find MAP estimate
+#' ## Optimize and find MAP estimate
 #+ opt_gpcovfg, results='hide'
 opt_gpcovfg <- model_gpcovfg$optimize(data=standata_gpcovfg,
                                       init=0.1, algorithm='bfgs')
@@ -352,7 +358,7 @@ mcycle %>%
 #' posterior of 2 covariance function parameters and 2 x 133 latent
 #' values.
 #' 
-#' Sample using dynamic HMC
+#' ## Sample using dynamic HMC
 #+ fit_gpcovfg, results='hide'
 fit_gpcovfg <- model_gpcovfg$sample(data=standata_gpcovfg,
                                     iter_warmup=100, iter_sampling=200,
@@ -411,7 +417,7 @@ draws_gpcovfg %>%
 #' posterior.
 #' 
 
-#' ## GP model with Hilbert basis functions
+#' # Heteroskedastic GP with Hilbert basis functions
 #'
 #' The covariance matrix approach requires computation of Cholesky of
 #' the covariance matrix which has time cost O(n^3) and this is needs
@@ -425,14 +431,16 @@ draws_gpcovfg %>%
 #' significant saving in the computation speed is often achieveved
 #' with a relatively small number of basis functions.
 #' 
-#' Code for illustrating the basis functions
-#' Model code
+#' ## Illustrate the basis functions
+#' 
+#' Code
 filebf0 <- "gpbf0.stan"
 writeLines(readLines(filebf0))
 #' The model code includes Hilbert space basis function helpers
 writeLines(readLines("gpbasisfun_functions.stan"))
 
 #' Compile basis function generation code
+#+ results='hide'
 modelbf0 <- cmdstan_model(stan_file = filebf0, include_paths = ".")
 
 #' Data to be passed to Stan
@@ -472,7 +480,6 @@ q %>%
   geom_text_repel(data=filter(q, ind<=6 & x==1),aes(x=1.02,y=f,label=ind),
                   direction="y")+
   theme(legend.position="none")
-#ggsave('gp_basis_functions.pdf',width=4,height=3)
 
 #' The first 8 spectral densities for exponentiated quadratic
 #' covariance function with sigma_f=1 and lengthscale_f=1. These
@@ -480,16 +487,15 @@ q %>%
 #' function. Bigger weights on the smoother basis functions thus imply
 #' a prior on function space favoring smoother functions.
 spd_EQ <- as.matrix(fixbf0$draws(variable='diagSPD_EQ_f'))
-round(spd_EQ[1:8],2)
+round(spd_EQ[1:12],2)
 
 #' The first 8 spectral densities for Matern-3/2 covariance function
 #' with sigma_f=1 and lengthscale_f=1. The spectral density values go
 #' down much slower than for the exponentiated quadratic covariance
 #' function, which is natural as Matern-3/2 is less smooth.
 spd_Matern32 <- as.matrix(fixbf0$draws(variable='diagSPD_Matern32_f'))
-round(spd_Matern32[1:8],2)
+round(spd_Matern32[1:12],2)
 
-9
 #' Plot 4 random draws from the prior on function space with
 #' exponentiated quadratic covariance function and sigma_f=1 and
 #' lengthscale_f=1. The basis function approximation is just a linear
@@ -511,7 +517,6 @@ qr %>%
   geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
                   direction="y")+
   theme(legend.position="none")
-ggsave('gp_prior_draws_l1.pdf',width=4,height=3)
 
 #' Plot 4 random draws from the prior on function space with
 #' Matern-3/2 covariance function and sigma_f=1 and
@@ -534,7 +539,6 @@ qr %>%
   geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
                   direction="y")+
   theme(legend.position="none")
-ggsave('gp_prior_draws_m_l1.pdf',width=4,height=3)
 
 #' Let's do the same with lengthscale_f=0.3
 standatabf0 <- list(x=seq(0,1,length.out=100),
@@ -577,7 +581,6 @@ qr %>%
   geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
                   direction="y")+
   theme(legend.position="none")
-ggsave('gp_prior_draws_l03.pdf',width=4,height=3)
 
 #' Plot 4 random draws from the prior on function space with
 #' Matern-3/2 covariance function and sigma_f=1 and
@@ -598,15 +601,15 @@ qr %>%
   geom_text_repel(data=filter(qr, x==1),aes(x=1.02,y=f,label=ind),
                   direction="y")+
   theme(legend.position="none")
-ggsave('gp_prior_draws_m_l03.pdf',width=4,height=3)
 
-#' And now the actual model using GP basis functions for f and g
+#' ## GP with basis functions for f and g
 #' 
 #' Model code
 file_gpbffg <- "gpbffg.stan"
 writeLines(readLines(file_gpbffg))
 
 #' Compile Stan model
+#+ results='hide'
 model_gpbffg <- cmdstan_model(stan_file = file_gpbffg, include_paths = ".")
 
 #' Data to be passed to Stan
@@ -618,7 +621,7 @@ standata_gpbffg <- list(x=mcycle$times,
                         c_g=1.5, # factor c of basis functions for GP for g3
                         M_g=40)  # number of basis functions for GP for g3
 
-#' Optimize and find MAP estimate
+#' ## Optimize and find MAP estimate
 #+ opt_gpbffg, results='hide'
 opt_gpbffg <- model_gpbffg$optimize(data=standata_gpbffg,
                                     init=0.1, algorithm='bfgs')
@@ -644,7 +647,7 @@ mcycle %>%
 #' posterior of 2 covariance function parameters and 2 x 40 basis
 #' function co-efficients.
 #' 
-#' Sample using dynamic HMC
+#' ## Sample using dynamic HMC
 #+ fit_gpbffg, results='hide'
 fit_gpbffg <- model_gpbffg$sample(data=standata_gpbffg,
                                   iter_warmup=500, iter_sampling=500, refresh=100,
@@ -706,7 +709,87 @@ draws_gpbffg %>%
 #' posterior.
 #' 
 
-#' ## GP model with Hilbert basis functions and Matern covariance
+#' ## Variational inference
+#' 
+#' Variational inference is popular in machine learning and also with
+#' Gaussian processes. When used carefully for selected models,
+#' parameters, parameterization, and approximate distribution,
+#' variational inference can be useful and fast. The following example
+#' illustrates, why it can also fail when applied in black box style.
+
+#' Run auto-differentiated variational inference (ADVI) with meanfield
+#' normal approximation, and in the end, sample from the
+#' approximation.
+#+ vi_gpbffg, results='hide'
+vi_gpbffg <- model_gpbffg$variational(data=standata_gpbffg,
+                                      init=0.01, tol_rel_obj=1e-4, iter=1e5, refresh=1000, seed=75)
+
+#' Check whether parameters have reasonable values
+vidraws_gpbffg <- as_draws_rvars(vi_gpbffg$draws())
+summarise_draws(subset(vidraws_gpbffg,
+                       variable=c('intercept','sigma_','lengthscale_'),
+                       regex=TRUE))
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(vidraws_gpbffg$f),
+         sigma=mean(vidraws_gpbffg$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' ADVI inference is catching the mean function well, and some of the
+#' varying noise variance, but clearly overestimating the noise
+#' variance in the early part.
+#' 
+#' Plot posterior draws and posterior mean of the mean function
+vidraws_gpbffg %>%
+  thin_draws(thin=5) %>%
+  spread_rvars(f[i]) %>%
+  unnest_rvars() %>%
+  mutate(time=mcycle$times[i]) %>%
+  ggplot(aes(x=time, y=f, group = .draw)) +
+  geom_line(color=set1[2], alpha = 0.1) +
+  geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
+  geom_line(data=mcycle, mapping=aes(x=times,y=mean(vidraws_gpbffg$f)),
+            inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
+
+#' We can also plot the posterior draws of the latent functions, which
+#' is a good reminder that individual draws are more wiggly than the
+#' average of the draws, and thus show better also the uncertainty,
+#' for example, in the edge of the data.
+#' 
+#' Compare the draws from the variational approximation to the MCMC
+#' draws and optimized parameters. This time show f[1] and g[1] to
+#' illustrate the challenging funnel shape. Although the inference
+#' happens in the space of beta_f and beta_g, f[1] and g[1] are linear
+#' projection of beta_f and beta_g, and thus the funnel is causing the
+#' problems for ADVI. Full rank normal approximation would not be able
+#' to help here.
+odraws_gpbffg <- as_draws_df(opt_gpbffg$draws())
+draws_gpbffg %>%
+  thin_draws(thin=5) %>%
+  as_draws_df() %>%
+  ggplot(aes(x=`f[1]`,y=log(`sigma[1]`)))+
+  geom_point(color=set1[2])+
+  geom_point(data=as_draws_df(vidraws_gpbffg),color=set1[3])+
+  geom_point(data=odraws_gpbffg,color=set1[1],size=4)+
+  annotate("text",x=median(vidraws_gpbffg$f[1])+1.3,
+           y=max(log(vidraws_gpbffg$sigma[1]))+0.1,
+           label='Variational inference',hjust=0,color=set1[3],size=6)+
+  annotate("text",x=median(draws_gpbffg$f[1])+1,
+           y=min(log(draws_gpbffg$sigma[1]))-0.1,
+           label='MCMC draws',hjust=0,color=set1[2],size=6)+
+  annotate("text",x=odraws_gpbffg$`f[1]`+1,
+           y=log(odraws_gpbffg$`sigma[1]`),
+           label='Optimized',hjust=0,color=set1[1],size=6)+
+  labs(y="g[1]")
+
+#' # Heteroskedastic GP with Matern covariance function and Hilbert basis functions 
 #' 
 #' Exponentiated quadratic is sometimes considered to be too smooth as
 #' all the derivatives are continuos. For comparison we use Matern-3/2
@@ -714,11 +797,12 @@ draws_gpbffg %>%
 #' the spectral density values change (that is different basis
 #' functions have a different weighting).
 #' 
-#' Model code
+#' ## Model code
 file_gpbffg2 <- "gpbffg_matern.stan"
 writeLines(readLines(file_gpbffg2))
 
 #' Compile Stan model
+#+ results='hide'
 model_gpbffg2 <- cmdstan_model(stan_file = file_gpbffg2, include_paths = ".")
 
 #' Data to be passed to Stan
@@ -730,7 +814,7 @@ standata_gpbffg2 <- list(x=mcycle$times,
                         c_g=1.5, # factor c of basis functions for GP for g3
                         M_g=160)  # number of basis functions for GP for g3
 
-#' Sample using dynamic HMC
+#' ## Sample using dynamic HMC
 #+ fit_gpbffg2, results='hide'
 fit_gpbffg2 <- model_gpbffg2$sample(data=standata_gpbffg2,
                                   iter_warmup=500, iter_sampling=500,
