@@ -18,6 +18,6 @@ matrix PHI(int N, int M, real L, vector x) {
 }
 matrix PHI_periodic(int N, int M, real w0, vector x) {
   matrix[N,M] mw0x = diag_post_multiply(rep_matrix(w0*x, M), linspaced_vector(M, 1, M));
-  matrix[N,M] PHIp = append_col(cos(mw0x), sin(mw0x));
+  matrix[N,2*M] PHIp = append_col(cos(mw0x), sin(mw0x));
   return PHIp;
 }

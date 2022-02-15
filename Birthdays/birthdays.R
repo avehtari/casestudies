@@ -40,6 +40,8 @@ library(bayesplot)
 theme_set(bayesplot::theme_default(base_family = "sans"))
 library(patchwork)
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
+#' Use English for names of weekdays and months
+Sys.setlocale("LC_TIME", "en_GB.UTF-8")
 
 #' ## Load and plot data
 #' 
@@ -1066,7 +1068,7 @@ init7 <- sapply(c('lengthscale_f1','lengthscale_f2',
                   'beta_f1','beta_f2','beta_f3','beta_f4','beta_f5'),
                 function(variable) {as.numeric(subset(odraws7, variable=variable))})
 #+ fit7, results='hide'
-fit7 <- model7$sample(data=standata7, iter_warmup=100, iter_sampling=100, chains=4, parallel_chains=4,
+fit7 <- model7$sample(data=standata7, iter_warmup=100, iter_sampling=100, chains=1, parallel_chains=4,
                       init=function() { init7 }, refresh=10)
 
 #' Check whether parameters have reasonable values
