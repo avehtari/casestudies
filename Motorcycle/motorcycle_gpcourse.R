@@ -426,10 +426,11 @@ draws_gpcovfg %>%
 #' significant when n grows. One way to speed up the computation in
 #' low dimensional covariate case is to use basis function
 #' approximation which changes the GP to a linear model. Here we use
-#' Hilbert space basis functions. With infinite number of basis
-#' functions, the approach is exact, but sufficient accuracy and
-#' significant saving in the computation speed is often achieveved
-#' with a relatively small number of basis functions.
+#' Hilbert space basis functions. With increasing number of basis
+#' functions and factor c, the approximation error can be made
+#' arbitrarily small. Sufficient accuracy and significant saving in
+#' the computation speed is often achieveved with a relatively small
+#' number of basis functions.
 #' 
 #' ## Illustrate the basis functions
 #' 
