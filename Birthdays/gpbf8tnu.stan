@@ -51,7 +51,7 @@ parameters {
   real<lower=0> sigma_f2;       // scale of f2
   real<lower=0> sigma_g3;       // scale of g3
   real<lower=0> sigma_f4;       // scale of day of year effect
-  real<lower=1> nu_f4;
+  real<lower=0> nu_f4;
   real<lower=0> sigma;          // residual scale
 }
 model {
