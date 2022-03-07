@@ -84,7 +84,6 @@ model {
   beta_f2 ~ normal(0, 1);
   beta_f3 ~ normal(0, 1);
   beta_g3 ~ normal(0, 1);
-  beta_f4 ~ normal(0, sigma_f4);
   // horseshoe
   beta_f4 ~ normal(0, sqrt( c_f4^2 * square(lambda_f4) ./ (c_f4^2 + tau_f4^2*square(lambda_f4)))*tau_f4);
   lambda_f4 ~ student_t(nu_local, 0, 1);

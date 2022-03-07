@@ -1390,10 +1390,10 @@ fit8tnu <- model8tnu$sample(data=standata8, iter_warmup=100, iter_sampling=100,
 #' Check whether parameters have reasonable values
 draws8tnu <- fit8tnu$draws()
 summarise_draws(subset(draws8tnu, variable=c('intercept','sigma_','lengthscale_','sigma','nu_'), regex=TRUE))
-#' Posterior of degrees of freedom `nu_f4` is very close to 1, and
-#' thus the distribution is very close to Cauchy. This is strong
+#' Posterior of degrees of freedom `nu_f4` is very close to 0.5, and
+#' thus the distribution has thicker tails than Cauchy. This is strong
 #' evidence that the distribution of day of year effects is far from
-#' normal, even if Cauchy would not be the correct distribution.
+#' normal.
 
 #' Compare the model to the data
 draws8 <- as_draws_matrix(draws8tnu)
@@ -1476,7 +1476,7 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
 #' far we hadn't used model comparison such as leave-one-out
 #' cross-validation (LOO-CV) as each added component had qualitatively
 #' big and reasonable effect. Now as day of year effect is sensitive
-#' to prior choice, but it's not clear how much better Cauchy prior
+#' to prior choice, but it's not clear how much better $t_\nu$ prior
 #' distribution is we use LOO-CV to compare the models.
 loo8 <- fit8$loo()
 loo8tnu <- fit8tnu$loo()
@@ -1535,7 +1535,8 @@ init8rhs <- sapply(c('lengthscale_f1','lengthscale_f2','lengthscale_g3',
                   'tau_f4','lambda_f4','caux_f4'),
                 function(variable) {as.numeric(subset(odraws8rhs, variable=variable))})
 #+ fit8rhs, results='hide'
-fit8rhs <- model8rhs$sample(data=standata8, iter_warmup=100, iter_sampling=100, chains=4, parallel_chains=4,
+fit8rhs <- model8rhs$sample(data=standata8, iter_warmup=100, iter_sampling=100,
+                            chains=4, parallel_chains=4,
                             init=function() { init8rhs }, refresh=10)
 
 #' Check whether parameters have reasonable values
@@ -1613,20 +1614,16 @@ pf2b <-data.frame(x=as.Date("1988-01-01")+0:365, y=Ef4float) %>%
   geom_point(data=f13,aes(x=date,y=y), size=3, shape=1)
 (pf + pf1) / (pf2 + pf3b) / (pf2b)
 
-#' Visually we get quite similar result as with Cauchy prior. When we
-#' compare the models with LOO-CV, Cauchy is favored instead of RHS.
+#' Visually we get quite similar result as with $t_\nu$ prior. When we
+#' compare the models with LOO-CV, there is not much difference
+#' between these priors.
 loo8rhs<-fit8rhs$loo()
 loo_compare(list(`Model 8 Students t`=loo8tnu,`Model 8 RHS`=loo8rhs))
-#' If we look at the LOO-stacking model weights, the predictive
-#' performance can be improved by combining Cauchy and RHS priors on
-#' day of year effect which indicates that neither of them is very
-#' close to true distribution.
-loo_model_weights(list(`Model 8 Students t`=loo8tnu,`Model 8 RHS`=loo8rhs))
 
 #' ### Further improvements for the day of year effect
 #' 
 #' It's unlikely that day of year effect would be unstructured with
-#' some distribution like Cauchy, and thus instead of trying to find a
+#' some distribution like RHS, and thus instead of trying to find a
 #' prior distribution that would improve LOO-CV, it would make more
 #' sense to further add structural information. For example, it would
 #' be possible to add more known special days and take into account
