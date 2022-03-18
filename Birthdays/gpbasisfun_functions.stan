@@ -1,14 +1,12 @@
 vector diagSPD_EQ(real alpha, real rho, real L, int M) {
-  return sqrt((alpha^2) * sqrt(2*pi()) * rho * exp(-0.5*(rho*pi()/2/L)^2 * linspaced_vector(M, 1, M)^2));
+  return alpha * sqrt(sqrt(2*pi()) * rho) * exp(-0.25*(rho*pi()/2/L)^2 * linspaced_vector(M, 1, M)^2);
 }
 vector diagSPD_Matern32(real alpha, real rho, real L, int M) {
-   return sqrt(4*alpha^2 * (sqrt(3)/rho)^3 * inv((sqrt(3)/rho)^2 + ((pi()/2/L) * linspaced_vector(M, 1, M))^2)^2);
+   return 2*alpha * (sqrt(3)/rho)^1.5 * inv((sqrt(3)/rho)^2 + ((pi()/2/L) * linspaced_vector(M, 1, M))^2);
 }
 vector diagSPD_periodic(real alpha, real rho, int M) {
   real a = 1/rho^2;
-  array[M] int one_to_M;
-  for (m in 1:M) one_to_M[m] = m;
-  vector[M] q = sqrt(alpha^2 * 2 / exp(a) * to_vector(modified_bessel_first_kind(one_to_M, a)));
+  vector[M] q = exp(2 * log(alpha) - a + 0.5 * to_vector(log_modified_bessel_first_kind(linspaced_int_array(M, 1, M), a)));
   return append_row(q,q);
 }
 matrix PHI(int N, int M, real L, vector x) {
