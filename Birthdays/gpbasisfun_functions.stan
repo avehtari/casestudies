@@ -6,7 +6,7 @@ vector diagSPD_Matern32(real alpha, real rho, real L, int M) {
 }
 vector diagSPD_periodic(real alpha, real rho, int M) {
   real a = 1/rho^2;
-  vector[M] q = exp(2 * log(alpha) - a + 0.5 * to_vector(log_modified_bessel_first_kind(linspaced_int_array(M, 1, M), a)));
+  vector[M] q = exp(log(alpha) + 0.5 * (log(2) - a + to_vector(log_modified_bessel_first_kind(linspaced_int_array(M, 1, M), a))));
   return append_row(q,q);
 }
 matrix PHI(int N, int M, real L, vector x) {
