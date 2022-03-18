@@ -41,7 +41,7 @@ SEED <- 48927 # set random seed for reproducibility
 #' ## Example model and posterior
 
 #' For the illustration Binomial model is used with observed data
-#' $N=10, y=1$.
+#' $N=10, y=9$.
 data_bin <- list(N = 10, y = 9)
 
 #' As Beta(1,1) prior is used the posterior is Beta(9+1,1+1), but for
