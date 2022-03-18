@@ -9,6 +9,7 @@
 #'     toc_depth: 2
 #'     toc_float: true
 #'     code_download: true
+#'     keep_md: true
 #' ---
 
 
