@@ -9,20 +9,31 @@
 #'     toc_depth: 2
 #'     toc_float: true
 #'     code_download: true
+#' bibliography: digits.bib
+#' csl: harvard-cite-them-right.csl
+#' link-citations: yes
 #' ---
-
+#' 
 #' A workflow for deciding how many digits to report when summarizing
 #' the posterior distribution, and how to check how many independent
 #' Monte Carlo (MC) draws or dependent Markov chain Monte Carlo (MCMC)
 #' draws are needed.
+#'
+#' # Introduction
+#'
+#' When running any iterative algorithm we need to decide when to stop or how many iterations and how many sequences to run. In the context of posterior inference, the answer can be divided in two parts: (1) how many chains and iterations do we need to assess that the algorithm is sampling from something close to the target distribution, and (2) how many draws do we need so that the reported posterior summaries would not change in important ways if the inference would be repeated? This notebook discusses the second part.
 #' 
-#' We analyse the trend in summer months average temperature 1952-2013
-#' at Kilpisjärvi in northwestern Finnish Lapland (about 69°03'N,
-#' 20°50'E).  We fit a simple linear model, and skip here many usual
-#' workflow parts like model checking and focus on the question of how
-#' to decide how many digits to report.
+#' Before we can answer how many chains and iterations we need to run, we need to know how many significant digits we want to report. Too often, we see tables filled with numbers like $1.7705$. It's very unlikely that all these digits are accurately estimated, and also very unlikely that the accuracy in magnitude of one in ten thousand would be needed for any practical purpose. Reporting too many digits makes it more difficult to read summary tables. Thus, before considering how many iterations we need it's useful to consider how many digits it is sensible to report.
 #' 
-#' ## Summary of workflow for how many digits to report
+#' Without any additional information, we may assume that relative errors smaller than 1\% are typically negligible and thus most of the time reporting at most 2 significant digits would be sufficient. Accuracy to just one significant digit can be sufficient in the early stages of analysis and can be sensible and convenient even in final reporting, as discussed in the example below.
+#' 
+#' MCMC and other Monte Carlo methods are stochastic and if the inference would be repeated with a different random seed (random number generators in computers are usually producing deterministic pseudo-random sequences), the estimates would vary. The amount of variation reduces when more iterations are used. For example, if the posterior would be close to normal with standard deviation 1, $\mathrm{normal}(\mu, 1)$, then 2000 independent draws from the posterior would provide enough accuracy that the second significant digit of posterior mean would only sometimes vary to one smaller or larger value. On the other hand, for 1 significant digit accuracy, 100 independent draws would be often sufficient, but reliable convergence diagnostics may need more iterations than 100 (see, e.g., @Vehtari+etal:2021:Rhat). The above thumb-rules are useful for the necessary number of independent draws for a posterior mean of a distribution which is relatively close to normal and in other cases and, for exmaple, for posterior quantiles more draws may be needed.
+#' 
+#' MCMC in general doesn't produce independent draws and the effect of dependency affects how many draws are needed to estimate different expectations. As in general, we don't know beforhand how MCMC will perform for a new posterior, and we don't know what is the scale of that posterior beforehand, we need to start with some initial guess of number of iterations to run.
+#' 
+#' # How many iterations to run and how many digits to report
+#' 
+#' Summary of workflow for how many digits to report
 #'
 #' 1. Run inference with some default number of iterations
 #' 2. Check convergence diagnostics for all parameters
@@ -37,7 +48,8 @@
 #' 
 #'  - If the accuracy is not sufficient, report less digits or run
 #'    more iterations.
-#'  - Halving MCSE requires quadrupling the number of iterations.
+#'  - Halving MCSE requires quadrupling the number of iterations
+#'    (if CLT holds).
 #'  - Different quantities of interest have different MCSE and may
 #'    require different number of iterations for the desired accuracy.
 #'  - Some quantities of interest may have posterior distribution with
@@ -54,13 +66,17 @@
 #' 
 #' -------------
 #' 
+#' # Example
+#'
+#' As an example, we analyse the trend in summer months average temperature 1952--2013 at Kilpisjärvi in northwestern Finnish Lapland. Summer months are June, July, and August, and we analyse the average temperature over these months in each year.
+#'
 
 #+ setup, include=FALSE
 knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE, comment=NA)
 # switch this to TRUE to save figures in separate files
 savefigs <- FALSE
 
-#' #### Load packages
+#' ### Load packages
 library("rprojroot")
 root<-has_file(".Workflow-Examples-root")$make_fix_file()
 library(tidyr) 
@@ -94,9 +110,13 @@ ggplot() +
 
 #' ### Gaussian linear model
 #'
-#' To analyse whether the average summer month temperature is rising,
-#' we use a linear model with Gaussian model for the unexplained
-#' variation.
+#' We use a simple linear model with normal observation model, weakly
+#' informative normal prior, and the predictor (time) centered to have
+#' 0 mean. We assume a priori that increase or decrease in temperature
+#' is equally likely, and that it is unlikely that temperature would
+#' change more 10 degrees in 100 years. We also assume that yearly
+#' variation in summer temperatures is likely to be less than 3
+#' degrees.
 #' 
 #' The following Stan code centers the covariate to reduce posterior
 #' dependency of slope and coefficient parameters. It also makes it
@@ -116,8 +136,9 @@ data_lin_priors <- c(list(
 
 #' ## Run inference for some number of iterations
 #'
-#' We run the inference using the default options, that is, 4 chains,
-#' with 1000 iterations for after warmup.
+#' We run MCMC with Stan's current default settings. All convergence
+#' diagnostics pass and all effective sample size are big enough that
+#' we can assume that the convergence diagnostics are reliable.
 #' 
 #+ results='hide'
 mod_lin <- cmdstan_model(stan_file = code_lin)
@@ -157,13 +178,13 @@ if (savefigs) ggsave(root("Kilpisjarvi","kilpisjarvi_fit.pdf"),
 #' sizes are large enough (>400) that we can assume the diagnostics to
 #' be reliable.
 #'
-#' Normally we would also do posterior predictive checking and residual
-#' plots, but now we focus on checking how many MCMC iterations are
-#' needed and how many digits to report in posterior summary results.
+#' We could also do posterior predictive checking and residual plots,
+#' but now we focus on checking how many MCMC iterations are needed
+#' and how many digits to report in posterior summary results.
 #' 
 
 #' ## How many digits to report based on posterior uncertainty
-#' 
+#'
 #' We want to report posterior summaries for the slope, that is the
 #' increase in average summer temperature, and for the probability
 #' that the slope is positive. We first consider what is the
@@ -205,7 +226,7 @@ quantile(draws$beta, probs=c(0.05,0.95))
 #' increase is estimated to be 1 to 3 degrees per century (81%
 #' probability, or rounded to 80% probability), or 0 to 4 degrees per
 #' century (99% probability). There is no need to stick to reporting
-#' 90% interval.
+#' 90% or 95% interval.
 #'
 #' The number of significant digits needed for reporting can be often
 #' determined also with rough posterior approximations that indicate
@@ -234,9 +255,9 @@ colnames(estimates) <- c("mean" ,"5%","95%")
 as_tibble(estimates)
 
 #' We see that for mean the third digit is varying and the rounded
-#' value is between 1.9 and 2.0. For 5% quantile even the first
+#' value is between 1.9 and 2.0. For the 5% quantile even the first
 #' significant digit is sometimes varying and the rounded value would
-#' vary between 0.6 and 0.7.  For 95% quantile the second digit is
+#' vary between 0.6 and 0.7.  For the 95% quantile the second digit is
 #' varying and the rounded values would vary between 3.2 and
 #' 3.3. Based on this, it would be OK to report the mean as 1.9 or 2
 #' and 90% interval as [0.7, 3.2] as based on the first Monte Carlo
@@ -247,8 +268,8 @@ as_tibble(estimates)
 #' 
 #' Instead of repeating the estimation many times we can estimate the
 #' accuracy of the original sampling by computing Monte Carlo standard
-#' error that takes into account the quantity of interest, and the
-#' effective sample size of MCMC draws (see, e.g., Vehtari et al, 2021).
+#' error (MCSE) that takes into account the quantity of interest, and the
+#' effective sample size of MCMC draws (see, e.g., @Vehtari+etal:2021:Rhat).
 #'
 #+ render=lemon_print, digits=3
 draws %>%
@@ -257,39 +278,37 @@ draws %>%
 
 #' We show also the ESS values for mean and quantiles, to illustrate
 #' that the ESS values can be different for different quantities, but
-#' also that the same ESS doesn't lead to the same MCSE, but MCSE
-#' depends also on the quantity. Here, for exmaple, although ESSs are
-#' similar for all quantities, 5% and 95% quantiles have clearly
-#' higher MCSE than the mean.
+#' also that the same ESS doesn't lead to the same MCSE, and similar
+#' ESS doesn't lead to similar MCSE as MCSE depends also on the
+#' quantity. Here, for example, although ESSs are similar for all
+#' quantities, 5\% and 95\% quantiles have clearly higher MCSE than
+#' the mean.
 #' 
 #+ render=lemon_print, digits=0
 draws %>%
   subset_draws("beta100") %>%
   summarize_draws(ess_mean, ~ess_quantile(.x, probs = c(0.05, 0.95)))
 
-#' For the mean MCSE is about 0.01 and for 5% and 95% quantiles about
-#' 0.03. Tail quantiles usually have higher MCSE than mean or median
-#' (e.g. in case bimodal distribution, MCSE for mean can be higher
-#' than for some tail quantiles). This also illustrates that the
-#' required number of iterations to get certain accuracy depends on
-#' the quantity of interest. If we multiply the above MCSEs by 2, the
-#' likely range of variation due to Monte Carlo is $\pm\!$ 0.02 for
-#' mean and $\pm\!$ 0.07 for 5% and 95% quantiles. From this we can
-#' interpret that it's unlikely there would be variation in the
-#' reported estimate for the mean if it is reported as 2.0. For 5% and
-#' 95% quantiles there can be variation in the first decimal digit,
-#' but that difference would in many cases be not meaningful. We could
-#' run more iterations to get the MCSE for quantiles down to something
-#' like 0.01. Assuming the posterior has finite variance and MCMC is
-#' mixing well, we expect that running four times more iterations
-#' would halve the MCSEs, and thus in case MCSE 0.01 for the 5% and
-#' 95% quantiles would require about 10 times more iterations.
+#' The MCSE for the mean estimate is about 0.01 and for 5% and 95%
+#' quantiles about 0.03. If we multiply these by 2, the likely range
+#' of variation due to Monte Carlo is $\pm 0.02$ for mean and $\pm
+#' 0.07$ for 5% and 95% quantiles. From this we can interpret that
+#' it's unlikely there would be variation in the reported estimate for
+#' the mean, if it is reported as 2.0. For 5% and 95% quantiles
+#' there can be variation in the first decimal digit, but that
+#' difference would not be meaningful in most cases. We could run more
+#' iterations to get the MCSE for quantiles down to something like
+#' 0.01, which would require about 10 times more iterations. Assuming
+#' the posterior has finite variance and MCMC is mixing well, we
+#' expect that running four times more iterations would halve the
+#' MCSEs.
 #'
 #' As discussed before, it might be anyway better to report the
-#' posterior uncertainty interval with less digits and if we would
-#' report either 80% interval [1, 3] or 99% interval [0, 4], we would
+#' posterior uncertainty interval with less digits, and if we reported
+#' either 80% interval $[1, 3]$ or 99% interval $[0, 4]$, we would
 #' already have sufficient accuracy for the number of shown
-#' digits. 
+#' digits. These MCSE estimates illustrate also the fact that usually
+#' tail quantiles have lower accuracy than the posterior mean.
 #'
 #' We can also report the probability that the temperature change is
 #' positive.
@@ -300,16 +319,16 @@ draws %>%
   summarize_draws("mean", mcse = mcse_mean)
 
 #' The probability is simply estimated as a posterior mean of an
-#' indicator function and the usual MCSE estimate is used.  The MCSE
-#' indicates we have enough MCMC iterations for practically meaningful
-#' reporting of saying that the probability that the temperature is
-#' increasing is larger than 99%. There is not much practical
-#' difference to reporting that the probability is 98.9%--99.7% and to
-#' estimate that third digit accurately would require 64 times more
-#' iterations. For this simple problem, sampling that many iterations
-#' would not be time consuming, but we might also instead consider to
-#' obtain more data to verify that the summer temperature in northern
-#' Finland has been increasing since 1952.
+#' indicator function and the usual MCSE for mean estimate is used.
+#' The MCSE indicates that we have enough MCMC iterations for
+#' practically meaningful reporting that the probability that the
+#' temperature is increasing is larger than 99%. There is not much
+#' practical difference to reporting that the probability is 99.3%
+#' and to estimate that third digit accurately would require 64 times
+#' more iterations. For this simple problem, sampling that many
+#' iterations would not be time consuming, but we might also instead
+#' consider to obtain more data to verify that the summer temperature
+#' in northern Finland has been increasing since 1952.
 #'
 
 #' We additionaly compute probabilities that the temperature increase
@@ -336,7 +355,7 @@ draws %>%
 #' ## MCSE computation details
 #' 
 #' The details of how MCSE is estimated for posterior expectations and
-#' quantiles are provided by Vehtari et al. (2021), and
+#' quantiles are provided by @Vehtari+etal:2021:Rhat, and
 #' implementations are available, for example in the `posterior` R
 #' package used in this notebook and in `ArviZ` Python package.
 #'
@@ -349,7 +368,7 @@ draws %>%
 #'
 #' If we assume that the posterior of parameter $\theta$ has finite
 #' mean and variance, and we have many independent Monte Carlo draws
-#' S, we can use central limit theorem to justify that the uncertainty
+#' $S$, we can use central limit theorem to justify that the uncertainty
 #' related to the estimated expectation can be approximated with
 #' normal distribution, $\mathrm{normal}(\hat{\theta}, \hat{\sigma}_\theta /
 #' \sqrt{S})$, where $\hat{\theta}$ is the estimate and
@@ -391,8 +410,9 @@ draws %>%
 #'
 #' Dynamic Hamiltonian Monte Carlo in Stan is often so efficient that
 #' ESS>S/2. Thus running with the default options 4 chains with 1000
-#' iterations after warmup is likely to give practical two significant
-#' digit accuracy.
+#' iterations after warmup is likely to give near two significant
+#' digit accuracy for the posterior mean. The accuracy for 5\% and
+#' 95\% quantiles would be between one and two significant digits.
 #'
 #' The above analysis shows the benefit of interpreting ESS as a scale
 #' free diagnostic whether we are likely to have enough iterations. A
@@ -407,5 +427,12 @@ draws %>%
 #' degrees per century has high ESS, but the indicator variable
 #' contains less information (than continuous values) and thus much
 #' higher ESS would be needed for two significant digit accuracy.
+#'
+#' <br />
 #' 
+#' # References {.unnumbered}
+#'
+#' <div id="refs"></div>
+#' 
+
 
