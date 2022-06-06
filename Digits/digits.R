@@ -59,10 +59,6 @@
 #'    deviation. ESS and MCSE for (non-extreme) quantiles can be
 #'    derived from the (non-extreme) cumulative probabilities that
 #'    always have finite mean and variance.
-#'  - For rough initial posterior mean estimates with about one
-#'    significant digit accuracy, ESS>100 is needed. For about two
-#'    significant digit accuracy, ESS>2000 is needed. These can be
-#'    used as initial guesses for how many iterations of MCMC to run.
 #' 
 #' -------------
 #' 
