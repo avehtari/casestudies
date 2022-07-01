@@ -1,7 +1,7 @@
 functions {
-  vector gp_pred_rng(real[] x2,
+  vector gp_pred_rng(array[] real x2,
                      vector y1,
-                     real[] x1,
+                     array[] real x1,
                      real sigma_f,
                      real lengthscale_f,
                      real sigma,
@@ -46,8 +46,8 @@ transformed data {
   real ymean = mean(y);
   real xsd = sd(x);
   real ysd = sd(y);
-  real xn[N] = to_array_1d((x - xmean)/xsd);
-  real x2n[N2] = to_array_1d((x2 - xmean)/xsd);
+  array[N] real xn = to_array_1d((x - xmean)/xsd);
+  array[N2] real x2n = to_array_1d((x2 - xmean)/xsd);
   vector[N] yn = (y - ymean)/ysd;
   real sigma_intercept = 0.1;
   vector[N] zeros = rep_vector(0, N);

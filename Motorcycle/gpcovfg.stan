@@ -9,7 +9,7 @@ transformed data {
   real ymean = mean(y);
   real xsd = sd(x);
   real ysd = sd(y);
-  real xn[N] = to_array_1d((x - xmean)/xsd);
+  array[N] real xn = to_array_1d((x - xmean)/xsd);
   vector[N] yn = (y - ymean)/ysd;
   real sigma_intercept = 0.1;
   vector[N] jitter = rep_vector(1e-9, N);

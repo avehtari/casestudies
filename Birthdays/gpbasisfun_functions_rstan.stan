@@ -1,12 +1,13 @@
 vector diagSPD_EQ(real alpha, real rho, real L, int M) {
-  vector[M] one_to_M;
-  for (m in 1:M) one_to_M[m] = m^2;
-  return sqrt((alpha^2) * sqrt(2*pi()) * rho * exp(-0.5*(rho*pi()/2/L)^2 * one_to_M));
+  vector[M] one_to_M2;
+  for (m in 1:M) one_to_M2[m] = m^2;
+  return alpha * sqrt(sqrt(2*pi()) * rho) * exp(-0.25*(rho*pi()/2/L)^2 * one_to_M2);
 }
-/* real spd_Matt(real alpha, real rho, real w) { */
-/*   real S = 4*alpha^2 * (sqrt(3)/rho)^3 * 1/((sqrt(3)/rho)^2 + w^2)^2; */
-/*   return sqrt(S); */
-/* } */
+vector diagSPD_Matern32(real alpha, real rho, real L, int M) {
+  vector[M] one_to_M2;
+  for (m in 1:M) one_to_M2[m] = m^2;
+   return 2*alpha * (sqrt(3)/rho)^1.5 * inv((sqrt(3)/rho)^2 + (pi()/2/L)^2 * one_to_M2);
+}
 vector diagSPD_periodic(real alpha, real rho, int M) {
   real a = 1/rho^2;
   vector[M] q;
