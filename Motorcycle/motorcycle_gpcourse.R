@@ -453,7 +453,7 @@ standatabf0 <- list(x=seq(0,1,length.out=100),
                     lengthscale_f=1) 
 #' Generate basis functions
 fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
-                          iter=1, iter_sampling=1)
+                          chains=1, iter=1, iter_sampling=1)
 #' There is certainly easier way to do this, but this is what I came up quickly
 q<-subset(fixbf0$draws(), variable="PHI_f") %>%
   as_draws_matrix() %>%
@@ -549,7 +549,7 @@ standatabf0 <- list(x=seq(0,1,length.out=100),
                     sigma_f=1,
                     lengthscale_f=0.3) 
 fixbf0 <- modelbf0$sample(data=standatabf0, fixed_param=TRUE,
-                          iter=1, iter_sampling=1)
+                          chains=1, iter=1, iter_sampling=1)
 #' The basis functions are exactly the same, and only the spectral
 #' densities have changed. Now the weight doesn't drop as fast for
 #' the more wiggly basis functions.
