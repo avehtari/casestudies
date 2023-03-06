@@ -41,8 +41,8 @@ model {
   vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
   vector[M_g] diagSPD_g = diagSPD_EQ(sigma_g, lengthscale_g, L_g, M_g);
   // priors
-  intercept_f ~ normal(0, 1);
-  intercept_g ~ normal(0, 1);
+  intercept_f ~ normal(0, .1);
+  intercept_g ~ normal(0, .1);
   beta_f ~ normal(0, 1);
   beta_g ~ normal(0, 1);
   lengthscale_f ~ normal(0, 1);
@@ -56,6 +56,7 @@ model {
 generated quantities {
   vector[N] f;
   vector[N] sigma;
+  vector[N] log_lik;
   {
     // spectral densities
     vector[M_f] diagSPD_f = diagSPD_EQ(sigma_f, lengthscale_f, L_f, M_f);
@@ -63,5 +64,9 @@ generated quantities {
     // function scaled back to the original scale
     f = (intercept_f + PHI_f * (diagSPD_f .* beta_f))*ysd + ymean;
     sigma = exp(intercept_g + PHI_g * (diagSPD_g .* beta_g))*ysd;
+    for (n in 1:N) {
+      log_lik[n] = normal_lpdf(yn[n] | intercept_f + PHI_f[n] * (diagSPD_f .* beta_f),
+	      exp(intercept_g + PHI_g[n] * (diagSPD_g .* beta_g)));
+    }
   }
 }

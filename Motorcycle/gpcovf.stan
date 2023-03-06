@@ -49,7 +49,7 @@ transformed data {
   array[N] real xn = to_array_1d((x - xmean)/xsd);
   array[N2] real x2n = to_array_1d((x2 - xmean)/xsd);
   vector[N] yn = (y - ymean)/ysd;
-  real sigma_intercept = 0.1;
+  real sigma_intercept = 1;
   vector[N] zeros = rep_vector(0, N);
 }
 parameters {
@@ -60,8 +60,8 @@ parameters {
 model {
   // covariances and Cholesky decompositions
   matrix[N, N] K_f = gp_exp_quad_cov(xn, sigma_f, lengthscale_f)+
-                     sigma_intercept;
-  matrix[N, N] L_f = cholesky_decompose(add_diag(K_f, sigman));
+                     sigma_intercept^2;
+  matrix[N, N] L_f = cholesky_decompose(add_diag(K_f, sigman^2));
   // priors
   lengthscale_f ~ normal(0, 1);
   sigma_f ~ normal(0, 1);

@@ -25,10 +25,10 @@ parameters {
 model {
   // covariances and Cholesky decompositions
   matrix[N, N] K_f = gp_exp_quad_cov(xn, sigma_f, lengthscale_f)+
-                     sigma_intercept;
+                     sigma_intercept^2;
   matrix[N, N] L_f = cholesky_decompose(add_diag(K_f, jitter));
   matrix[N, N] K_g = gp_exp_quad_cov(xn, sigma_g, lengthscale_g)+
-                     sigma_intercept;
+                     sigma_intercept^2;
   matrix[N, N] L_g = cholesky_decompose(add_diag(K_g, jitter));
   // priors
   z_f ~ std_normal();
@@ -46,10 +46,10 @@ generated quantities {
   {
     // covariances and Cholesky decompositions
     matrix[N, N] K_f = gp_exp_quad_cov(xn, sigma_f, lengthscale_f)+
-                       sigma_intercept;
+                       sigma_intercept^2;
     matrix[N, N] L_f = cholesky_decompose(add_diag(K_f, jitter));
     matrix[N, N] K_g = gp_exp_quad_cov(xn, sigma_g, lengthscale_g)+
-                       sigma_intercept;
+                       sigma_intercept^2;
     matrix[N, N] L_g = cholesky_decompose(add_diag(K_g, jitter));
     // function scaled back to the original scale
     f = (L_f * z_f)*ysd + ymean;

@@ -55,12 +55,14 @@ knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE, comment=NA, cac
 #' ### Load packages {.unnumbered}
 library(cmdstanr) 
 library(posterior)
+library(loo)
 library(tidybayes)
 options(pillar.neg = FALSE, pillar.subtle=FALSE, pillar.sigfig=2)
 library(tidyr) 
 library(dplyr) 
 library(ggplot2)
 library(ggrepel)
+library(latex2exp)
 library(bayesplot)
 theme_set(bayesplot::theme_default(base_family = "sans", base_size=16))
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
@@ -84,7 +86,7 @@ mcycle %>%
 #' $$
 #' y \sim \mbox{normal}(f(x), \sigma)\\
 #' f \sim GP(0, K_1)\\
-#' \sigma \sim normal^{+}(0, 1),
+#' \sigma \sim \mbox{normal}^{+}(0, 1),
 #' $$
 #' that has analytic marginal likelihood for the covariance function
 #' and residual scale parameters.
@@ -603,6 +605,114 @@ qr %>%
                   direction="y")+
   theme(legend.position="none")
 
+#' ## GP with basis functions for f
+#' 
+#' Model code
+file_gpbff <- "gpbff.stan"
+writeLines(readLines(file_gpbff))
+
+#' Compile Stan model
+#+ results='hide'
+model_gpbff <- cmdstan_model(stan_file = file_gpbff, include_paths = ".", stanc_options = list("O1"))
+
+#' Data to be passed to Stan
+standata_gpbff <- list(x=mcycle$times,
+                        y=mcycle$accel,
+                        N=length(mcycle$times),
+                        c_f=1.5, # factor c of basis functions for GP for f1
+                        M_f=40,  # number of basis functions for GP for f1
+                        c_g=1.5, # factor c of basis functions for GP for g3
+                        M_g=40)  # number of basis functions for GP for g3
+
+#' ## Optimize and find MAP estimate
+#+ opt_gpbff, results='hide'
+opt_gpbff <- model_gpbff$optimize(data=standata_gpbff,
+                                    init=0.1, algorithm='bfgs')
+
+#' Check whether parameters have reasonable values
+odraws_gpbff <- as_draws_rvars(opt_gpbff$draws())
+subset(odraws_gpbff, variable=c('intercept','sigma_','lengthscale_'),
+       regex=TRUE)
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(odraws_gpbff$f),
+         sigma=mean(odraws_gpbff$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+
+#' The optimization is not that bad. We are now optimizing the joint
+#' posterior of 1 covariance function parameters and 40 basis
+#' function co-efficients.
+#' 
+#' ## Sample using dynamic HMC
+#+ fit_gpbff, results='hide'
+fit_gpbff <- model_gpbff$sample(data=standata_gpbff,
+                                  iter_warmup=500, iter_sampling=500, refresh=100,
+                                  chains=4, parallel_chains=4, adapt_delta=0.9)
+
+#' Check whether parameters have reasonable values
+draws_gpbff <- as_draws_rvars(fit_gpbff$draws())
+summarise_draws(subset(draws_gpbff,
+                       variable=c('intercept','sigma_','lengthscale_'),
+                       regex=TRUE))
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(draws_gpbff$f),
+         sigma=mean(draws_gpbff$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' The MCMC integration works well and the model fit looks good. The model fit
+#' is clearly more smooth than with optimization.
+#' 
+#' Plot posterior draws and posterior mean of the mean function
+draws_gpbff %>%
+  thin_draws(thin=5) %>%
+  spread_rvars(f[i]) %>%
+  unnest_rvars() %>%
+  mutate(time=mcycle$times[i]) %>%
+  ggplot(aes(x=time, y=f, group = .draw)) +
+  geom_line(color=set1[2], alpha = 0.1) +
+  geom_point(data=mcycle, mapping=aes(x=times,y=accel), inherit.aes=FALSE)+
+  geom_line(data=mcycle, mapping=aes(x=times,y=mean(draws_gpbff$f)),
+            inherit.aes=FALSE, color=set1[1], size=1)+
+  labs(x="Time (ms)", y="Acceleration (g)")
+
+#' We can also plot the posterior draws of the latent functions, which
+#' is a good reminder that individual draws are more wiggly than the
+#' average of the draws, and thus show better also the uncertainty,
+#' for example, in the edge of the data.
+#' 
+#' Compare the posterior draws to the optimized parameters
+odraws_gpbff <- as_draws_df(opt_gpbff$draws())
+draws_gpbff %>%
+  thin_draws(thin=5) %>%
+  as_draws_df() %>%
+  ggplot(aes(x=lengthscale_f,y=sigma_f))+
+  geom_point(color=set1[2])+
+  geom_point(data=odraws_gpbff,color=set1[1],size=4)+
+  annotate("text",x=median(draws_gpbff$lengthscale_f),
+           y=max(draws_gpbff$sigma_f)+0.1,
+           label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=odraws_gpbff$lengthscale_f+0.01,
+           y=odraws_gpbff$sigma_f,
+           label='Optimized',hjust=0,color=set1[1],size=6)
+
+#' Optimization result is far from being representative of the
+#' posterior.
+#' 
+
 #' ## GP with basis functions for f and g
 #' 
 #' Model code
@@ -611,7 +721,7 @@ writeLines(readLines(file_gpbffg))
 
 #' Compile Stan model
 #+ results='hide'
-model_gpbffg <- cmdstan_model(stan_file = file_gpbffg, include_paths = ".")
+model_gpbffg <- cmdstan_model(stan_file = file_gpbffg, include_paths = ".", stanc_options = list("O1"))
 
 #' Data to be passed to Stan
 standata_gpbffg <- list(x=mcycle$times,
@@ -709,6 +819,30 @@ draws_gpbffg %>%
 #' Optimization result is far from being representative of the
 #' posterior.
 #' 
+
+#' ## Model comparison
+#' 
+#' Looking at the plots comparing model predictions and data, it is
+#' quite obvious in this case that the heteroskedastic model is better
+#' for these data. In cases when it is not as clear, we can use
+#' leave-one-out cross-validation comparison. Here we compare
+#' homoskedastic and heteroskedastic models.
+#' 
+loobff <- fit_gpbff$loo()
+loobffg <- fit_gpbffg$loo()
+loo_compare(list(homoskedastic=loobff,heteroskedastic=loobffg))
+
+#' Heteroskedastic model has clearly much higher elpd estimate.
+#'
+#' We can plot also the difference in the pointwise elpd values (log scores)
+#' so that we see in which parts the heteroskedastic model is better
+#' 
+data.frame(time=mcycle$times,
+           elpd_diff=loobffg$pointwise[,'elpd_loo']-loobff$pointwise[,'elpd_loo']) |>
+  ggplot(aes(x=time,y=elpd_diff))+
+  geom_point(color=set1[2])+
+  geom_hline(yintercept=0, linetype="dashed")+
+  labs(x="Time (ms)", y=TeX("elpd of heteroskedastic GP is higher $\\rightarrow$"))
 
 #' ## Variational inference
 #' 
