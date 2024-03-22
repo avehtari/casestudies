@@ -5,11 +5,11 @@ data {
   int<lower=1> N;      // number of observations
   vector[N] x;         // univariate covariate
   vector[N] y;         // target variable
-  int day_of_week[N];  // 
-  int day_of_year[N];  // 
-  int memorial_days[20];
-  int labor_days[40];
-  int thanksgiving_days[40];
+  array[N] int day_of_week;  // 
+  array[N] int day_of_year;  // 
+  array[20] int memorial_days;
+  array[40] int labor_days;
+  array[40] int thanksgiving_days;
         
   real<lower=0> c_f1;  // factor c to determine the boundary value L
   int<lower=1> M_f1;   // number of basis functions for smooth function

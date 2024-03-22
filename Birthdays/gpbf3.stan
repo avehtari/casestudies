@@ -5,7 +5,7 @@ data {
   int<lower=1> N;      // number of observations
   vector[N] x;         // univariate covariate
   vector[N] y;         // target variable
-  int day_of_week[N];  // 
+  array [N] int day_of_week;  // 
         
   real<lower=0> c_f1;  // factor c to determine the boundary value L
   int<lower=1> M_f1;   // number of basis functions for smooth function
