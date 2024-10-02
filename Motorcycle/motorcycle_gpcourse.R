@@ -55,6 +55,7 @@ knitr::opts_chunk$set(message=FALSE, error=FALSE, warning=FALSE, comment=NA, cac
 #' ### Load packages {.unnumbered}
 library(cmdstanr) 
 library(posterior)
+options(stanc.allow_optimizations = TRUE)
 library(loo)
 library(tidybayes)
 options(pillar.neg = FALSE, pillar.subtle=FALSE, pillar.sigfig=2)
@@ -62,11 +63,53 @@ library(tidyr)
 library(dplyr) 
 library(ggplot2)
 library(ggrepel)
+library(patchwork)
 library(latex2exp)
 library(bayesplot)
 theme_set(bayesplot::theme_default(base_family = "sans", base_size=16))
 set1 <- RColorBrewer::brewer.pal(7, "Set1")
+library(tictoc)
+mytoc <- \() {toc(func.toc=\(tic,toc,msg) { sprintf("%s took %s sec",msg,as.character(signif(toc-tic,2))) })}
 SEED <- 48927 # set random seed for reproducibility
+
+#' Function to form a list of list of initial values from a draws object.
+#' Something like this will be eventually available in `cmdstanr` package.
+as_inits <- function(draws, variable=NULL, ndraws=4) {
+  ndraws <- min(ndraws(draws),ndraws)
+  if (is.null(draws)) {variable = variables(draws)}
+  inits <- lapply(1:ndraws,
+                  function(drawid) {
+                    sapply(variable,
+                           function(var) {
+                             as.numeric(subset_draws(draws, variable=var, draw=drawid))
+                           })
+                  })
+  if (ndraws==1) { inits[[1]] } else { inits }
+}
+
+#' Function to form a list of list of initial values from a Pathfinder object.
+#' Something like this will be eventually available in `cmdstanr` package.
+create_inits <- function(pthfs, variables=NULL, ndraws=4) {
+  if (is.list(pthfs)) {
+    pthf <- pthfs[[1]]
+    draws <- do.call(bind_draws, c(lapply(pthfs, as_draws), along='draw'))
+  } else {
+    pthf <- pthfs
+    draws <- pthf$draws()
+  }
+  draws <- draws |>
+    mutate_variables(lw=lp__-lp_approx__,
+                     w=exp(lw-max(lw)),
+                     ws=pareto_smooth(w, tail='right', r_eff=1)$x)
+  if (is.null(variables)) {
+    variables <- names(pthf$variable_skeleton(transformed_parameters = FALSE,
+                                              generated_quantities = FALSE))
+  }
+  draws |>
+    weight_draws(weights=extract_variable(draws,"ws"), log=FALSE) |>
+    resample_draws(ndraws=ndraws, method = "simple_no_replace") |>
+    as_inits(variable=variables, ndraws=ndraws)
+}
 
 #' ## Load and plot data
 #' 
@@ -97,7 +140,7 @@ file_gpcovf <- "gpcovf.stan"
 writeLines(readLines(file_gpcovf))
 
 #' Compile Stan model
-#+ results='hide'
+#+ model_gpcovf, results='hide'
 model_gpcovf <- cmdstan_model(stan_file = file_gpcovf)
 
 #' Data to be passed to Stan
@@ -107,10 +150,14 @@ standata_gpcovf <- list(x=mcycle$times,
                         N=length(mcycle$times),
                         N2=length(mcycle$times))
 
-#' ## Optimize and find MAP estimate
+#' ## Optimize and find MAP estimate in the unconstrained space (jacobian=TRUE)
+tic('Find MAP estimate for homoskedastic GP with covariance matrices')
 #+ opt_gpcovf, results='hide'
 opt_gpcovf <- model_gpcovf$optimize(data=standata_gpcovf,
-                                    init=0.1, algorithm='bfgs')
+                                    jacobian=TRUE,
+                                    init=0.01, algorithm='bfgs')
+#+
+mytoc()
 
 #' Check whether parameters have reasonable values
 odraws_gpcovf <- as_draws_rvars(opt_gpcovf$draws())
@@ -130,11 +177,74 @@ mcycle %>%
 #' The model fit given optimized parameters, looks reasonable
 #' considering the use of homoskedastic residual model.
 #' 
+#' ## Sample from the Laplace approximation (normal at the mode in the unconstrained space)
+tic('Sample from the Laplace approximation for homoskedastic GP with covariance matrices')
+#+ lap_gpcovf, results='hide'
+lap_gpcovf <- model_gpcovf$laplace(data=standata_gpcovf,
+                                   mode=opt_gpcovf,
+                                   draws=1000)
+#+
+mytoc()
+
+#' Check whether parameters have reasonable values
+ldraws_gpcovf <- as_draws_rvars(lap_gpcovf$draws())
+summarise_draws(subset(ldraws_gpcovf,
+                       variable=c('sigma_','lengthscale_','sigma'),
+                       regex=TRUE),
+                default_summary_measures())
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(ldraws_gpcovf$f),
+         sigma=mean(ldraws_gpcovf$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' The result looks different from the optimization result, and we'll
+#' later compare these to MCMC result.
+
+#' ## Sample from the Pathfinder approximation
+tic('Sample from the Pathfinder approximation for homoskedastic GP with covariance matrices')
+#+ pth_gpcovf, results='hide'
+pth_gpcovf <- model_gpcovf$pathfinder(data=standata_gpcovf, init=0.01,
+                                      num_paths=10, single_path_draws=200,
+                                      history_size=100, max_lbfgs_iters=100)
+#+
+mytoc()
+
+#' Check whether parameters have reasonable values
+pdraws_gpcovf <- as_draws_rvars(pth_gpcovf$draws())
+summarise_draws(subset(pdraws_gpcovf,
+                       variable=c('sigma_','lengthscale_','sigma'),
+                       regex=TRUE),
+                default_summary_measures())
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(pdraws_gpcovf$f),
+         sigma=mean(pdraws_gpcovf$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' The result looks different from the optimization result, and we'll
+#' later compare these to MCMC result.
+
 #' ## Sample using dynamic HMC
+tic('MCMC sample from the posterior of homoskedastic GP with covariance matrices')
 #+ fit_gpcovf, results='hide'
 fit_gpcovf <- model_gpcovf$sample(data=standata_gpcovf,
-                                  iter_warmup=500, iter_sampling=500,
+                                  iter_warmup=500, iter_sampling=250,
                                   chains=4, parallel_chains=4, refresh=100)
+#+
+mytoc()
 
 #' Check whether parameters have reasonable values
 draws_gpcovf <- as_draws_rvars(fit_gpcovf$draws())
@@ -156,12 +266,14 @@ mcycle %>%
 #' The model fit given integrated parameters looks similar to the
 #' optimized one.
 #' 
-#' Compare the posterior draws to the optimized parameters
+#' Compare the posterior draws to the optimized parameters and to
+#' Laplace and Pathfinder approximations
 odraws_gpcovf <- as_draws_df(opt_gpcovf$draws())
-draws_gpcovf %>%
+p1<-draws_gpcovf %>%
   as_draws_df() %>%
   ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
+  lims(x=c(0.21,0.62),y=c(0.5,2.8))+
   geom_point(data=odraws_gpcovf,color=set1[1],size=4)+
   annotate("text",x=median(draws_gpcovf$lengthscale_f),
            y=max(draws_gpcovf$sigma_f)+0.1,
@@ -169,11 +281,39 @@ draws_gpcovf %>%
   annotate("text",x=odraws_gpcovf$lengthscale_f+0.01,
            y=odraws_gpcovf$sigma_f,
            label='Optimized',hjust=0,color=set1[1],size=6)
+p1
+
+p2<-ldraws_gpcovf %>%
+  as_draws_df() %>%
+  ggplot(aes(x=lengthscale_f,y=sigma_f))+
+  geom_point(color=set1[2])+
+  lims(x=c(0.21,0.62),y=c(0.5,2.8))+
+  geom_point(data=odraws_gpcovf,color=set1[1],size=4)+
+  annotate("text",x=median(draws_gpcovf$lengthscale_f),
+           y=max(draws_gpcovf$sigma_f)+0.1,
+           label='Laplace draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=odraws_gpcovf$lengthscale_f+0.01,
+           y=odraws_gpcovf$sigma_f,
+           label='Optimized',hjust=0,color=set1[1],size=6)
+
+p3<-pdraws_gpcovf %>%
+  as_draws_df() %>%
+  ggplot(aes(x=lengthscale_f,y=sigma_f))+
+  geom_jitter(color=set1[2])+
+  lims(x=c(0.21,0.62),y=c(0.5,2.8))+
+  geom_point(data=odraws_gpcovf,color=set1[1],size=4)+
+  annotate("text",x=median(draws_gpcovf$lengthscale_f),
+           y=max(draws_gpcovf$sigma_f)+0.1,
+           label='Pathfinder draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=odraws_gpcovf$lengthscale_f+0.01,
+           y=odraws_gpcovf$sigma_f,
+           label='Optimized',hjust=0,color=set1[1],size=6)
 
 #' The optimization result is in the middle of the posterior and quite
 #' well representative of the low dimensional posterior (in higher
 #' dimensions the mean or mode of the posterior is not likely to be
-#' representative).
+#' representative). Laplace and Pathfinder approximations resemble the
+#' true posterior.
 #' 
 #' Compare optimized and posterior predictive distributions
 odraws_gpcovf <- as_draws_rvars(opt_gpcovf$draws())
@@ -192,11 +332,53 @@ mcycle %>%
   geom_line(aes(y=Efo-2*sigmao), color=set1[2],linetype="dashed")+
   geom_line(aes(y=Efo+2*sigmao), color=set1[2],linetype="dashed")
 
-#' The model predictions are very similar, and in general GP
-#' covariance function and observation model parameters can be quite
-#' safely optimized if there are only a few of them and thus marginal
-#' posterior is low dimensional and the number of observations is
-#' relatively high.
+#' Optimization based predictive distribution is close to posterior
+#' predictive distribution.  In general GP covariance function and
+#' observation model parameters can be quite safely optimized if there
+#' are only a few of them and thus marginal posterior is low
+#' dimensional and the number of observations is relatively high.
+#' 
+
+#' Compare Laplace approximated and posterior predictive distributions
+ldraws_gpcovf <- as_draws_rvars(lap_gpcovf$draws())
+mcycle %>%
+  mutate(Ef=mean(draws_gpcovf$f),
+         sigma=mean(draws_gpcovf$sigma),
+         Efo=mean(ldraws_gpcovf$f),
+         sigmao=mean(ldraws_gpcovf$sigma)) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Efo), color=set1[2])+
+  geom_line(aes(y=Efo-2*sigmao), color=set1[2],linetype="dashed")+
+  geom_line(aes(y=Efo+2*sigmao), color=set1[2],linetype="dashed")
+
+#' There is no visible difference between Laplace approximated and
+#' MCMC posterior predictive distributions.
+#' 
+
+#' Compare Pathfinder approximated and posterior predictive distributions
+pdraws_gpcovf <- as_draws_rvars(pth_gpcovf$draws())
+mcycle %>%
+  mutate(Ef=mean(draws_gpcovf$f),
+         sigma=mean(draws_gpcovf$sigma),
+         Efo=mean(pdraws_gpcovf$f),
+         sigmao=mean(pdraws_gpcovf$sigma)) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Efo), color=set1[2])+
+  geom_line(aes(y=Efo-2*sigmao), color=set1[2],linetype="dashed")+
+  geom_line(aes(y=Efo+2*sigmao), color=set1[2],linetype="dashed")
+
+#' There is no visible difference between Pathfinder approximated and
+#' MCMC posterior predictive distributions.
 #' 
 #' ## 10% of data
 #'
@@ -214,6 +396,7 @@ standata_10p <- list(x=mcycle_10p$times,
 #' Optimize and find MAP estimate
 #+ opt_10p, results='hide'
 opt_10p <- model_gpcovf$optimize(data=standata_10p, init=0.1,
+                                 jacobian=TRUE,
                                  algorithm='lbfgs')
 
 #' Check whether parameters have reasonable values
@@ -233,6 +416,71 @@ mcycle_10p %>%
 
 #' The model fit is clearly over-fitted and over-confident.
 #' 
+#' ## Sample from the Laplace approximation (normal at the mode in the unconstrained space)
+#+ lap_10p, results='hide'
+lap_10p <- model_gpcovf$laplace(data=standata_10p,
+                                mode=opt_10p,
+                                draws=1000)
+
+#' Check whether parameters have reasonable values
+ldraws_10p <- as_draws_rvars(lap_10p$draws())
+summarise_draws(subset(ldraws_10p,
+                       variable=c('sigma_','lengthscale_','sigma'),
+                       regex=TRUE),
+                default_summary_measures())
+
+#' Compare the model to the data
+mcycle_10p %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(data=mcycle,aes(x=times,y=mean(ldraws_10p$f)), color=set1[1])+
+  geom_line(data=mcycle,aes(x=times,y=mean(ldraws_10p$f-2*ldraws_10p$sigma)), color=set1[1],
+            linetype="dashed")+
+  geom_line(data=mcycle,aes(x=times,y=mean(ldraws_10p$f+2*ldraws_10p$sigma)), color=set1[1],
+            linetype="dashed")
+
+#' ## Sample from the Laplace approximation (normal at the mode in the unconstrained space)
+#+ pth_10p, results='hide'
+## pth_10p <- model_gpcovf$pathfinder(data=standata_10p, init=0.01,
+##                                    num_paths=10, single_path_draws=200,
+##                                    history_size=100, max_lbfgs_iters=100)
+pth_10ps=list()
+for (i in 1:40) {
+  pth_10ps[[i]] <- model_gpcovf$pathfinder(data = standata_10p,
+                                           init=0.01,
+                                           num_paths=1, single_path_draws=50,
+                                           history_size=100, max_lbfgs_iters=100)
+}
+
+#' Check whether parameters have reasonable values
+#pdraws_10p <- as_draws_rvars(pth_10p$draws())
+pdraws_10p <- do.call(bind_draws, c(lapply(pth_10ps, as_draws_rvars), along='draw'))
+pdraws_10p <- pdraws_10p |>
+    mutate_variables(lw=lp__-lp_approx__,
+                     w=exp(lw-max(lw)),
+                     ws=pareto_smooth(w, tail='right', r_eff=1)$x)
+pdraws_10p <- pdraws_10p |>
+  weight_draws(weights=extract_variable(pdraws_10p,"ws"), log=FALSE) |>
+  resample_draws()
+summarise_draws(subset(pdraws_10p,
+                       variable=c('sigma_','lengthscale_','sigma'),
+                       regex=TRUE),
+                default_summary_measures())
+
+#' Compare the model to the data
+mcycle_10p %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(data=mcycle,aes(x=times,y=mean(pdraws_10p$f)), color=set1[1])+
+  geom_line(data=mcycle,aes(x=times,y=mean(pdraws_10p$f-2*pdraws_10p$sigma)), color=set1[1],
+            linetype="dashed")+
+  geom_line(data=mcycle,aes(x=times,y=mean(pdraws_10p$f+2*pdraws_10p$sigma)), color=set1[1],
+            linetype="dashed")
+
+#' Pathfinder approximation is even smoother.
+#'
 #' Sample using dynamic HMC
 #+ fit_10p, results='hide'
 fit_10p <- model_gpcovf$sample(data=standata_10p,
@@ -262,11 +510,12 @@ mcycle_10p %>%
 #' 
 #' Compare the posterior draws to the optimized parameters
 odraws_10p <- as_draws_df(opt_10p$draws())
-draws_10p %>%
-  thin_draws(thin=5) %>%
+p1<-draws_10p %>%
+  thin_draws(thin=4) %>%
   as_draws_df() %>%
   ggplot(aes(x=sigma,y=sigma_f))+
   geom_point(color=set1[2])+
+  lims(x=c(0,90),y=c(0,3.3))+
   geom_point(data=odraws_10p,color=set1[1],size=4)+
   annotate("text",x=median(draws_10p$sigma),
            y=max(draws_10p$sigma_f)+0.1,
@@ -275,10 +524,43 @@ draws_10p %>%
            y=odraws_10p$sigma_f,
            label='Optimized',hjust=0,color=set1[1],size=6)
 
+#' Compare the posterior draws to the optimized parameters
+ldraws_10p <- as_draws_df(lap_10p$draws())
+p2<-ldraws_10p %>%
+  as_draws_df() %>%
+  ggplot(aes(x=sigma,y=sigma_f))+
+  geom_point(color=set1[2])+
+  lims(x=c(0,90),y=c(0,3.3))+
+  geom_point(data=odraws_10p,color=set1[1],size=4)+
+  annotate("text",x=median(draws_10p$sigma),
+           y=max(draws_10p$sigma_f)+0.1,
+           label='Laplace draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=odraws_10p$sigma+0.01,
+           y=odraws_10p$sigma_f,
+           label='Optimized',hjust=0,color=set1[1],size=6)
+
+#' Compare the posterior draws to the optimized parameters
+pdraws_10p <- as_draws_df(pdraws_10p)
+p3<-pdraws_10p %>%
+  as_draws_df() %>%
+  ggplot(aes(x=sigma,y=sigma_f))+
+  geom_jitter(color=set1[2])+
+  lims(x=c(0,90),y=c(0,3.3))+
+  geom_point(data=odraws_10p,color=set1[1],size=4)+
+  annotate("text",x=median(draws_10p$sigma),
+           y=max(draws_10p$sigma_f)+0.1,
+           label='Pathfinder draws',hjust=0.5,color=set1[2],size=6)+
+  annotate("text",x=odraws_10p$sigma+0.01,
+           y=odraws_10p$sigma_f,
+           label='Optimized',hjust=0,color=set1[1],size=6)
+
+p1+p2+p3
+
 #' The optimization result is in the edge of the posterior close to
 #' zero residual scale. While there are posterior draws close to zero,
 #' integrating over the wide posterior takes into account the
-#' uncertainty and the predictions thus are more uncertain, too.
+#' uncertainty and the predictions thus are more uncertain,
+#' too. Approximate integration is helpful, oo.
 #' 
 #' Compare optimized and posterior predictive distributions
 odraws_10p <- as_draws_rvars(opt_10p$draws())
@@ -302,6 +584,47 @@ mcycle %>%
 #' overconfident. Even if the homoskedastic residual is wrong here,
 #' the posterior predictive interval covers most of the observation
 #' (and in case of good calibration should not cover them all).
+#' 
+#' Compare Laplace approximated and posterior predictive distributions
+ldraws_10p <- as_draws_rvars(lap_10p$draws())
+mcycle %>%
+  mutate(Ef=mean(draws_10p$f),
+         sigma=mean(draws_10p$sigma),
+         Efo=mean(ldraws_10p$f),
+         sigmao=mean(ldraws_10p$sigma)) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Efo), color=set1[2])+
+  geom_line(aes(y=Efo-2*sigmao), color=set1[2],linetype="dashed")+
+  geom_line(aes(y=Efo+2*sigmao), color=set1[2],linetype="dashed")
+
+#' Laplace approximated predictive distribution is narrower than MCMC
+#' based predictive distribution.
+#' 
+
+#' Compare Pathfinder approximated and posterior predictive distributions
+pdraws_10p <- as_draws_rvars(pdraws_10p)
+mcycle %>%
+  mutate(Ef=mean(draws_10p$f),
+         sigma=mean(draws_10p$sigma),
+         Efo=mean(pdraws_10p$f),
+         sigmao=mean(pdraws_10p$sigma)) %>%
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Efo), color=set1[2])+
+  geom_line(aes(y=Efo-2*sigmao), color=set1[2],linetype="dashed")+
+  geom_line(aes(y=Efo+2*sigmao), color=set1[2],linetype="dashed")
+
+#' Pathfinder approximated predictive distribution is just slightly
+#' narrower than MCMC based predictive distribution.
 #' 
 
 #' # Heteroskedastic GP with covariance matrices
@@ -329,7 +652,9 @@ writeLines(readLines(file_gpcovfg))
 
 #' Compile Stan model
 #+ results='hide'
-model_gpcovfg <- cmdstan_model(stan_file = file_gpcovfg)
+model_gpcovfg <- cmdstan_model(stan_file = file_gpcovfg,
+                               compile_model_methods=TRUE, force_recompile=TRUE)
+
 
 #' Data to be passed to Stan
 standata_gpcovfg <- list(x=mcycle$times,
@@ -337,9 +662,13 @@ standata_gpcovfg <- list(x=mcycle$times,
                          N=length(mcycle$times))
 
 #' ## Optimize and find MAP estimate
+tic('Find MAP estimate for heteroskedastic GP with covariance matrices')
 #+ opt_gpcovfg, results='hide'
 opt_gpcovfg <- model_gpcovfg$optimize(data=standata_gpcovfg,
+                                      jacobian=TRUE,
                                       init=0.1, algorithm='bfgs')
+#+
+mytoc()
 
 #' Check whether parameters have reasonable values
 odraws_gpcovfg <- as_draws_rvars(opt_gpcovfg$draws())
@@ -359,12 +688,97 @@ mcycle %>%
 #' The optimization overfits, as we are now optimizing the joint
 #' posterior of 2 covariance function parameters and 2 x 133 latent
 #' values.
+#'
+#' ## Sample from the Laplace approximation (normal at the mode in the unconstrained space)
+tic('Sample from the Laplace approximation for heteroskedastic GP with covariance matrices')
+#+ lap_gpcovfg, results='hide'
+lap_gpcovfg <- model_gpcovfg$laplace(data=standata_gpcovfg,
+                                     mode=opt_gpcovfg,
+                                     draws=1000)
+#+
+mytoc()
+
+#' Check whether parameters have reasonable values
+ldraws_gpcovfg <- as_draws_rvars(lap_gpcovfg$draws())
+summarise_draws(subset(ldraws_gpcovfg,
+                       variable=c('sigma_','lengthscale_'),
+                       regex=TRUE),
+                default_summary_measures())
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(ldraws_gpcovfg$f),
+         sigma=mean(ldraws_gpcovfg$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' Drawing from the normal approximation doesn't help, if the mode is
+#' far from sensible values.
+
+#' ## Sample from the Pathfinder approximation
+tic('Sample from the Pathfinder approximation for heteroskedastic GP with covariance matrices')
+#+ pth_gpcovfg, results='hide'
+## pth_gpcovfg <- model_gpcovfg$pathfinder(data=standata_gpcovfg, init=0.1,
+##                                       num_paths=20, single_path_draws=100,
+##                                       history_size=100, max_lbfgs_iters=100)
+pth_gpcovfgs=list()
+for (i in 1:10) {
+  pth_gpcovfgs[[i]] <- model_gpcovfg$pathfinder(data = standata_gpcovfg,
+                                                init=0.1,
+                                                num_paths=1, single_path_draws=400,
+                                                history_size=50, max_lbfgs_iters=100)
+}
+#+
+mytoc()
+
+#' Check whether parameters have reasonable values
+#pdraws_gpcovfg <- as_draws_rvars(pth_gpcovfg$draws())
+pdraws_gpcovfg <- do.call(bind_draws, c(lapply(pth_gpcovfgs, as_draws_rvars), along='draw'))
+summarise_draws(subset(pdraws_gpcovfg,
+                       variable=c('sigma_','lengthscale_'),
+                       regex=TRUE),
+                default_summary_measures())
+
+pdraws_gpcovfg <- pdraws_gpcovfg |>
+    mutate_variables(lw=lp__-lp_approx__,
+                     w=exp(lw-max(lw)),
+                     ws=pareto_smooth(w, tail='right', r_eff=1)$x)
+
+pareto_khat(extract_variable(pdraws_gpcovfg,'w'), tail='right')
+
+pdraws_gpcovfg <- pdraws_gpcovfg |>
+  weight_draws(weights=extract_variable(pdraws_gpcovfg,"ws"), log=FALSE) |>
+  resample_draws(ndraws=100, method='simple_no_replace')
+
+pareto_khat(extract_variable(pdraws_gpcovfg,'w'), tail='right')
+
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(pdraws_gpcovfg$f),
+         sigma=mean(pdraws_gpcovfg$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' Pathfinder result is much better, although far from the MCMC result below.
 #' 
 #' ## Sample using dynamic HMC
+tic('MCMC sample from the posterior of heteroskedastic GP with covariance matrices')
 #+ fit_gpcovfg, results='hide'
 fit_gpcovfg <- model_gpcovfg$sample(data=standata_gpcovfg,
                                     iter_warmup=100, iter_sampling=200,
-                                    chains=4, parallel_chains=4, refresh=20)
+                                    chains=4, parallel_chains=4, refresh=20,
+                                    init=create_inits(pth_gpcovfgs))
+#+
+mytoc()
 
 #' Check whether parameters have reasonable values
 draws_gpcovfg <- as_draws_rvars(fit_gpcovfg$draws())
@@ -407,7 +821,12 @@ draws_gpcovfg %>%
   as_draws_df() %>%
   ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
+  geom_point(data=as_draws_df(pdraws_gpbffg),color=set1[3])+
+  lims(x=c(0.1,0.7),y=c(0.5,2.2))+
   geom_point(data=odraws_gpcovfg,color=set1[1],size=4)+
+  annotate("text",x=median(pdraws_gpbffg$lengthscale_f),
+           y=max(pdraws_gpbffg$sigma_f)+0.1,
+           label='Pathfinder draws',hjust=0.5,color=set1[3],size=6)+
   annotate("text",x=median(draws_gpcovfg$lengthscale_f),
            y=max(draws_gpcovfg$sigma_f)+0.1,
            label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
@@ -416,7 +835,9 @@ draws_gpcovfg %>%
            label='Optimized',hjust=0,color=set1[1],size=6)
 
 #' Optimization result is far from being representative of the
-#' posterior.
+#' posterior. The Pathfinder draws are also clearly not overlapping
+#' MCMC draws, but in GPs the ratio of sigma_f and lengthscale_f is
+#' the important one, and that is close.
 #' 
 
 #' # Heteroskedastic GP with Hilbert basis functions
@@ -443,7 +864,7 @@ writeLines(readLines(filebf0))
 writeLines(readLines("gpbasisfun_functions.stan"))
 
 #' Compile basis function generation code
-#+ results='hide'
+#+ modelbf0, results='hide'
 modelbf0 <- cmdstan_model(stan_file = filebf0, include_paths = ".")
 
 #' Data to be passed to Stan
@@ -612,7 +1033,7 @@ file_gpbff <- "gpbff.stan"
 writeLines(readLines(file_gpbff))
 
 #' Compile Stan model
-#+ results='hide'
+#+ model_gpbff, results='hide'
 model_gpbff <- cmdstan_model(stan_file = file_gpbff, include_paths = ".", stanc_options = list("O1"))
 
 #' Data to be passed to Stan
@@ -625,9 +1046,12 @@ standata_gpbff <- list(x=mcycle$times,
                         M_g=40)  # number of basis functions for GP for g3
 
 #' ## Optimize and find MAP estimate
+tic('Find MAP estimate for homoskedastic GP with basis functions')
 #+ opt_gpbff, results='hide'
 opt_gpbff <- model_gpbff$optimize(data=standata_gpbff,
-                                    init=0.1, algorithm='bfgs')
+                                  init=0.1, algorithm='bfgs')
+#+
+mytoc()
 
 #' Check whether parameters have reasonable values
 odraws_gpbff <- as_draws_rvars(opt_gpbff$draws())
@@ -642,19 +1066,22 @@ mcycle %>%
   geom_point()+
   labs(x="Time (ms)", y="Acceleration (g)")+
   geom_line(aes(y=Ef), color=set1[1])+
-  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+ geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
   geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
 
 
 #' The optimization is not that bad. We are now optimizing the joint
 #' posterior of 1 covariance function parameters and 40 basis
 #' function co-efficients.
+#'
+#' As MCMC is very fast for this model, we skip showing Laplace and
+#' Pathfinder approximations.
 #' 
 #' ## Sample using dynamic HMC
 #+ fit_gpbff, results='hide'
 fit_gpbff <- model_gpbff$sample(data=standata_gpbff,
-                                  iter_warmup=500, iter_sampling=500, refresh=100,
-                                  chains=4, parallel_chains=4, adapt_delta=0.9)
+                                iter_warmup=500, iter_sampling=500, refresh=100,
+                                chains=4, parallel_chains=4, adapt_delta=0.9)
 
 #' Check whether parameters have reasonable values
 draws_gpbff <- as_draws_rvars(fit_gpbff$draws())
@@ -720,7 +1147,7 @@ file_gpbffg <- "gpbffg.stan"
 writeLines(readLines(file_gpbffg))
 
 #' Compile Stan model
-#+ results='hide'
+#+ model_gpbffg, results='hide'
 model_gpbffg <- cmdstan_model(stan_file = file_gpbffg, include_paths = ".", stanc_options = list("O1"))
 
 #' Data to be passed to Stan
@@ -733,9 +1160,12 @@ standata_gpbffg <- list(x=mcycle$times,
                         M_g=40)  # number of basis functions for GP for g3
 
 #' ## Optimize and find MAP estimate
+tic('Find MAP estimate for heteroskedastic GP with basis functions')
 #+ opt_gpbffg, results='hide'
 opt_gpbffg <- model_gpbffg$optimize(data=standata_gpbffg,
                                     init=0.1, algorithm='bfgs')
+#+
+mytoc()
 
 #' Check whether parameters have reasonable values
 odraws_gpbffg <- as_draws_rvars(opt_gpbffg$draws())
@@ -757,6 +1187,56 @@ mcycle %>%
 #' The optimization overfits, as we are now optimizing the joint
 #' posterior of 2 covariance function parameters and 2 x 40 basis
 #' function co-efficients.
+#'
+#' ## Sample from the Pathfinder approximation
+tic('Sample from the Pathfinder approximation for heteroskedastic GP with basis functions')
+#+ pth_gpbffg, results='hide'
+pth_gpbffgs=list()
+for (i in 1:10) {
+  pth_gpbffgs[[i]] <- model_gpbffg$pathfinder(data = standata_gpbffg,
+                                              init=0.1,
+                                              num_paths=1, single_path_draws=400,
+                                              history_size=50, max_lbfgs_iters=100)
+}
+#+
+mytoc()
+                                  
+#' Check whether parameters have reasonable values
+#pdraws_gpcovfg <- as_draws_rvars(pth_gpcovfg$draws())
+pdraws_gpbffg <- do.call(bind_draws, c(lapply(pth_gpbffgs, as_draws_rvars), along='draw'))
+summarise_draws(subset(pdraws_gpbffg,
+                       variable=c('sigma_','lengthscale_'),
+                       regex=TRUE),
+                default_summary_measures())
+
+pdraws_gpbffg <- pdraws_gpbffg |>
+    mutate_variables(lw=lp__-lp_approx__,
+                     w=exp(lw-max(lw)),
+                     ws=pareto_smooth(w, tail='right', r_eff=1)$x)
+
+pareto_khat(extract_variable(pdraws_gpbffg,'w'), tail='right')
+
+pdraws_gpbffg <- pdraws_gpbffg |>
+  weight_draws(weights=extract_variable(pdraws_gpbffg,"ws"), log=FALSE) |>
+  resample_draws(ndraws=100, method='simple_no_replace')
+
+pareto_khat(extract_variable(pdraws_gpbffg,'w'), tail='right')
+
+
+#' Compare the model to the data
+mcycle %>%
+  mutate(Ef=mean(pdraws_gpbffg$f),
+         sigma=mean(pdraws_gpbffg$sigma)) %>%  
+  ggplot(aes(x=times,y=accel))+
+  geom_point()+
+  labs(x="Time (ms)", y="Acceleration (g)")+
+  geom_line(aes(y=Ef), color=set1[1])+
+  geom_line(aes(y=Ef-2*sigma), color=set1[1],linetype="dashed")+
+  geom_line(aes(y=Ef+2*sigma), color=set1[1],linetype="dashed")
+
+#' Pathfinder result is much better, although but different from the MCMC result below.
+#' 
+
 #' 
 #' ## Sample using dynamic HMC
 #+ fit_gpbffg, results='hide'
@@ -804,13 +1284,17 @@ draws_gpbffg %>%
 #' Compare the posterior draws to the optimized parameters
 odraws_gpbffg <- as_draws_df(opt_gpbffg$draws())
 draws_gpbffg %>%
-  thin_draws(thin=5) %>%
+  thin_draws(thin=4) %>%
   as_draws_df() %>%
   ggplot(aes(x=lengthscale_f,y=sigma_f))+
   geom_point(color=set1[2])+
+  geom_point(data=as_draws_df(pdraws_gpbffg),color=set1[3])+
   geom_point(data=odraws_gpbffg,color=set1[1],size=4)+
+  annotate("text",x=median(pdraws_gpbffg$lengthscale_f),
+           y=max(pdraws_gpbffg$sigma_f)+0.01,
+           label='Pathfinder draws',hjust=0.5,color=set1[3],size=6)+
   annotate("text",x=median(draws_gpbffg$lengthscale_f),
-           y=max(draws_gpbffg$sigma_f)+0.1,
+           y=max(thin_draws(draws_gpbffg,4)$sigma_f)+0.01,
            label='Posterior draws',hjust=0.5,color=set1[2],size=6)+
   annotate("text",x=odraws_gpbffg$lengthscale_f+0.01,
            y=odraws_gpbffg$sigma_f,
@@ -904,18 +1388,22 @@ vidraws_gpbffg %>%
 #' happens in the space of beta_f and beta_g, f[1] and g[1] are linear
 #' projection of beta_f and beta_g, and thus the funnel is causing the
 #' problems for ADVI. Full rank normal approximation would not be able
-#' to help here.
+#' to help here. Pathfinder works better than ADVI.
 odraws_gpbffg <- as_draws_df(opt_gpbffg$draws())
 draws_gpbffg %>%
   thin_draws(thin=5) %>%
   as_draws_df() %>%
   ggplot(aes(x=`f[1]`,y=log(`sigma[1]`)))+
   geom_point(color=set1[2])+
-  geom_point(data=as_draws_df(vidraws_gpbffg),color=set1[3])+
+  geom_point(data=as_draws_df(pdraws_gpbffg),color=set1[3])+
+  geom_point(data=as_draws_df(vidraws_gpbffg),color=set1[4])+
   geom_point(data=odraws_gpbffg,color=set1[1],size=4)+
   annotate("text",x=median(vidraws_gpbffg$f[1])+1.3,
            y=max(log(vidraws_gpbffg$sigma[1]))+0.1,
-           label='Variational inference',hjust=0,color=set1[3],size=6)+
+           label='ADVI draws',hjust=0,color=set1[4],size=6)+
+  annotate("text",x=max(pdraws_gpbffg$f[1])+1.3,
+           y=median(log(pdraws_gpbffg$sigma[1]))+0.1,
+           label='Pathfinder draws',hjust=0,color=set1[3],size=6)+
   annotate("text",x=median(draws_gpbffg$f[1])+1,
            y=min(log(draws_gpbffg$sigma[1]))-0.1,
            label='MCMC draws',hjust=0,color=set1[2],size=6)+
@@ -937,7 +1425,7 @@ file_gpbffg2 <- "gpbffg_matern.stan"
 writeLines(readLines(file_gpbffg2))
 
 #' Compile Stan model
-#+ results='hide'
+#+ model_gpbffg2, results='hide'
 model_gpbffg2 <- cmdstan_model(stan_file = file_gpbffg2, include_paths = ".")
 
 #' Data to be passed to Stan
