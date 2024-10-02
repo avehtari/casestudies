@@ -1,6 +1,6 @@
 #' ---
-#' title: "Bayesian workflow book - Digits"
-#' author: "Gelman, Vehtari, Simpson, et al"
+#' title: "How many iterations to run and how many digits to report"
+#' author: "Aki Vehtari"
 #' date: "First version 2020-12-05. Last modified `r format(Sys.Date())`."
 #' output:
 #'   html_document:
@@ -31,7 +31,7 @@
 #' 
 #' MCMC in general doesn't produce independent draws and the effect of dependency affects how many draws are needed to estimate different expectations. As in general, we don't know beforhand how MCMC will perform for a new posterior, and we don't know what is the scale of that posterior beforehand, we need to start with some initial guess of number of iterations to run.
 #' 
-#' # How many iterations to run and how many digits to report
+#' # Summary
 #' 
 #' Summary of workflow for how many digits to report
 #'
@@ -139,6 +139,15 @@ data_lin_priors <- c(list(
 #+ results='hide'
 mod_lin <- cmdstan_model(stan_file = code_lin)
 fit_lin <- mod_lin$sample(data = data_lin_priors, seed = SEED, refresh = 0)
+
+p1 <- p2 <- numeric()
+for (i in 1:1000) {
+  fit_lin <- mod_lin$sample(data = data_lin_priors, seed = i, refresh = 0)
+  draws <- fit_lin$draws()
+  beta <- extract_variable(draws, "beta")
+  p1[i] <- mean(beta>0)
+  p2[i] <- mean(pareto_smooth(beta,r_eff=1,return_k=FALSE,tail='left')>0)
+}
 
 #' ## Run convergence diagnostics
 #' 
