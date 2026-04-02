@@ -43,6 +43,7 @@ model {
 generated quantities {
   vector[N] f;
   vector[N] sigma;
+  vector[N] log_lik;
   {
     // covariances and Cholesky decompositions
     matrix[N, N] K_f = gp_exp_quad_cov(xn, sigma_f, lengthscale_f)+
@@ -54,5 +55,9 @@ generated quantities {
     // function scaled back to the original scale
     f = (L_f * z_f)*ysd + ymean;
     sigma = exp(L_g * z_g)*ysd;
+    for (n in 1:N) {
+      log_lik[n] = normal_lpdf(yn[n] | f[n], sigma[n]);
+    }
   }
+  
 }
